@@ -1,0 +1,203 @@
+// Top-level file structure
+file = _{ SOI ~ (module | submodule) ~ EOI }
+
+// Top-level module structures
+module        =  { "module" ~ string ~ "{" ~ (module_header | linkage | meta | revision | body)* ~ "}" }
+module_header = _{ yang_version | namespace | prefix }
+
+submodule        =  { "submodule" ~ string ~ "{" ~ (submodule_header | linkage | meta | revision | body)* ~ "}" }
+submodule_header = _{ yang_version | belongs_to }
+
+// Module components
+body = _{ extension | feature | identity | typedef | grouping | data_def | augment | rpc | notification | deviation }
+
+// Linkage and meta components
+linkage = _{ import | include }
+import  =  { "import" ~ string ~ "{" ~ (prefix | revision_date | description | reference)* ~ "}" }
+include =  { "include" ~ string ~ (";" | "{" ~ (revision_date | description | reference)* ~ "}") }
+
+meta = _{ organization | contact | description | reference }
+
+// Basic definitions and operations
+data_def = _{ container | leaf | leaf_list | list | choice | anydata | anyxml | uses }
+
+// Operations
+rpc            =  { "rpc" ~ string ~ (";" | "{" ~ (operation_body | input | output)* ~ "}") }
+action         =  { "action" ~ string ~ (";" | "{" ~ (operation_body | input | output)* ~ "}") }
+notification   =  { "notification" ~ string ~ (";" | "{" ~ (operation_body | data_def)* ~ "}") }
+operation_body = _{ if_feature | must | status | description | reference | typedef | grouping }
+
+// Input/Output definitions
+input   =  { "input" ~ "{" ~ io_body* ~ "}" }
+output  =  { "output" ~ "{" ~ io_body* ~ "}" }
+io_body = _{ must | typedef | grouping | data_def }
+
+// Data definition statements
+container      =  { "container" ~ string ~ (";" | "{" ~ container_body* ~ "}") }
+container_body = _{ when | if_feature | must | presence | config | status | description | reference | typedef | grouping | data_def | action | notification }
+
+leaf      =  { "leaf" ~ string ~ "{" ~ leaf_body+ ~ "}" }
+leaf_body = _{ when | if_feature | type | units | must | default | config | mandatory | status | description | reference }
+
+leaf_list      =  { "leaf-list" ~ string ~ "{" ~ leaf_list_body+ ~ "}" }
+leaf_list_body = _{ when | if_feature | type | units | must | default | config | min_elements | max_elements | ordered_by | status | description | reference }
+
+list      =  { "list" ~ string ~ (";" | "{" ~ list_body* ~ "}") }
+list_body = _{ when | if_feature | must | key | unique | config | min_elements | max_elements | ordered_by | status | description | reference | typedef | grouping | data_def | action | notification }
+
+// Choice and case constructs
+choice      =  { "choice" ~ string ~ (";" | "{" ~ choice_body* ~ "}") }
+choice_body = _{ when | if_feature | default | config | mandatory | status | description | reference | short_case | case }
+short_case  =  { choice | container | leaf | leaf_list | list | anydata | anyxml }
+
+case      =  { "case" ~ string ~ (";" | "{" ~ case_body* ~ "}") }
+case_body = _{ when | if_feature | status | description | reference | data_def }
+
+// Any data structures
+anydata   =  { "anydata" ~ string ~ (";" | "{" ~ anyx_body* ~ "}") }
+anyxml    =  { "anyxml" ~ string ~ (";" | "{" ~ anyx_body* ~ "}") }
+anyx_body = _{ when | if_feature | must | config | mandatory | status | description | reference }
+
+// Grouping and Uses
+grouping      =  { "grouping" ~ string ~ (";" | "{" ~ grouping_body* ~ "}") }
+grouping_body = _{ status | description | reference | typedef | grouping | data_def | action | notification }
+
+uses      =  { "uses" ~ string ~ (";" | "{" ~ uses_body* ~ "}") }
+uses_body = _{ when | if_feature | status | description | reference | refine | augment }
+
+// Type definitions
+typedef      =  { "typedef" ~ string ~ "{" ~ typedef_body+ ~ "}" }
+typedef_body = _{ type | units | default | status | description | reference }
+
+type      =  { "type" ~ string ~ (";" | "{" ~ type_body ~ "}") }
+type_body = _{
+    numberical_restriction
+  | decimal64_specification
+  | string_restriction
+  | enum_specification
+  | leafref_specification
+  | identityref_specification
+  | instance_identifier_specification
+  | bits_specification
+  | union_specification
+  | binary_specification
+}
+
+// Type specifications
+decimal64_specification           = { fraction_digits ~ range? }
+numberical_restriction            = { range }
+string_restriction                = { length? ~ pattern+ }
+enum_specification                = { enum+ }
+leafref_specification             = { path ~ require_instance? }
+identityref_specification         = { base+ }
+instance_identifier_specification = { require_instance }
+bits_specification                = { bit+ }
+union_specification               = { type+ }
+binary_specification              = { length? }
+
+// Identity and features
+identity      =  { "identity" ~ string ~ (";" | "{" ~ identity_body* ~ "}") }
+identity_body = _{ if_feature | base | status | description | reference }
+
+feature   = { "feature" ~ string ~ (";" | "{" ~ (if_feature | status | description | reference)* ~ "}") }
+extension = { "extension" ~ string ~ (";" | "{" ~ (argument | status | description | reference)* ~ "}") }
+
+// Augmentation etc.
+augment      =  { "augment" ~ string ~ "{" ~ augment_body* ~ "}" }
+augment_body = _{ when | if_feature | status | description | reference | data_def | case | action | notification }
+
+deviation      =  { "deviation" ~ string ~ "{" ~ deviation_body* ~ "}" }
+deviation_body = _{ description | reference | "not_supported" | deviate_add | deviate_delete | deviate_replace }
+
+deviate_add      =  { "deviate_add" ~ string ~ (";" | "{" ~ deviate_add_body* ~ "}") }
+deviate_add_body = _{ units | must | unique | default | config | mandatory | min_elements | max_elements }
+
+deviate_delete      =  { "deviate_delete" ~ string ~ (";" | "{" ~ deviate_delete_body* ~ "}") }
+deviate_delete_body = _{ units | must | unique | default }
+
+deviate_replace      =  { "deviate_replace" ~ string ~ (";" | "{" ~ deviate_replace_body* ~ "}") }
+deviate_replace_body = _{ type | units | default | config | mandatory | min_elements | max_elements }
+
+refine      = { "refine" ~ string ~ "{" ~ refine_body* ~ "}" }
+refine_body = { if_feature | must | presence | default | config | mandatory | min_elements | max_elements | description | reference }
+
+// Constraints and modifiers
+must      = { "must" ~ string ~ (";" | "{" ~ must_body* ~ "}") }
+must_body = { error_message | error_app_tag | description | reference }
+
+when       = { "when" ~ string ~ (";" | "{" ~ (description | reference)+ ~ "}") }
+if_feature = { "if-feature" ~ string ~ ";" }
+
+// Range and length specifications
+range      = { "range" ~ string ~ (";" | "{" ~ range_body* ~ "}") }
+range_body = { error_message | error_app_tag | description | reference }
+
+length      = { "length" ~ string ~ (";" | "{" ~ length_body* ~ "}") }
+length_body = { error_message | error_app_tag | description | reference }
+
+pattern      = { "pattern" ~ string ~ (";" | "{" ~ pattern_body* ~ "}")* }
+pattern_body = { modifier | error_message | error_app_tag | description | reference }
+modifier     = { "modifier" ~ "invert-match" }
+
+// Enum and bit specifications
+enum      =  { "enum" ~ string ~ (";" | "{" ~ enum_body* ~ "}") }
+enum_body = _{ if_feature | value | status | description | reference }
+
+bit      =  { "bit" ~ string ~ (";" | "{" ~ bit_body* ~ "}") }
+bit_body = _{ if_feature | position | status | description | reference }
+
+// Fraction digits for decimal64
+fraction_digits          =  { "fraction-digits" ~ fraction_digits_argument }
+fraction_digits_argument = @{ "1" ~ ("0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8")? | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" }
+
+// Simple properties and attributes
+revision = { "revision" ~ string ~ (";" | "{" ~ (description | reference)* ~ "}") }
+argument = { "argument" ~ string ~ (";" | "{" ~ yin_element ~ "}") }
+
+yang_version       = { "yang-version" ~ string ~ ";" }
+namespace          = { "namespace" ~ string ~ ";" }
+prefix             = { "prefix" ~ string ~ ";" }
+description        = { "description" ~ string ~ ";" }
+contact            = { "contact" ~ string ~ ";" }
+organization       = { "organization" ~ string ~ ";" }
+reference          = { "reference" ~ string ~ ";" }
+revision_date      = { "revision-date" ~ string ~ ";" }
+units              = { "units" ~ string ~ ";" }
+belongs_to         = { "belongs-to" ~ string ~ "{" ~ prefix ~ "}" }
+yin_element        = { "yin-element" ~ boolean ~ ";" }
+status             = { "status" ~ ("current" | "obsolete" | "deprecated") }
+default            = { "default" ~ string ~ ";" }
+config             = { "config" ~ boolean ~ ";" }
+mandatory          = { "mandatory" ~ boolean ~ ";" }
+error_message      = { "error-message" ~ string ~ ";" }
+error_app_tag      = { "error-app-tag" ~ string ~ ";" }
+value              = { "value" ~ integer ~ ";" }
+path               = { "path" ~ string ~ ";" }
+require_instance   = { "require-instance" ~ boolean ~ ";" }
+base               = { "base" ~ string ~ ";" }
+unique             = { "unique" ~ string ~ ";" }
+key                = { "key" ~ string ~ ";" }
+position           = { "position" ~ integer ~ ";" }
+presence           = { "presence" ~ string ~ ";" }
+min_elements       = { "min-elements" ~ integer ~ ";" }
+max_elements       = { "max-elements" ~ max_elements_value ~ ";" }
+max_elements_value = { "unbounded" | "\"unbounded\"" | integer }
+ordered_by         = { "ordered-by" ~ ordered_by_value ~ ";" }
+ordered_by_value   = { "user" | "system" }
+
+// Basic types and strings
+string               =  { unquoted_string | quoted_string ~ ("+" ~ quoted_string)* }
+unquoted_string      = @{ (!(" " | "\t" | "\r" | "\n" | "'" | "\"" | ";" | "{" | "}" | "//" | "/*" | "*/") ~ ANY)+ }
+single_quoted_string = @{ "'" ~ (!"'" ~ ANY)* ~ "'" }
+double_quoted_string = @{ "\"" ~ (escape | (!"\"" ~ ANY))* ~ "\"" }
+quoted_string        = _{ single_quoted_string | double_quoted_string }
+
+escape  = @{ "\\" ~ ("n" | "t" | "\"" | "\\") }
+boolean =  { "true" | "false" }
+integer =  { ("+" | "-")? ~ ASCII_DIGIT+ }
+
+// Whitespace and comments
+WHITESPACE    = _{ " " | "\t" | "\r" | "\n" }
+COMMENT       = _{ block_comment | line_comment }
+block_comment =  { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+line_comment  =  { "//" ~ (!("\n" | "\r") ~ ANY)* }
