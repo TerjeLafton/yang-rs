@@ -89,7 +89,7 @@ struct System {
 
 ## Complete example
 <details>
-    <summary>This is a full example showing an example YANG module and how it looks after the initial pest parsing
+    <summary>This is a full example showing an example YANG module and how it looks after the initial pest parsing</summary>
 
     This module is a test YANG module with various constructs for parser testing.
     ```yang
@@ -820,3 +820,4 @@ struct System {
         - argument > string > double_quoted_string: "\"name\""
     - EOI: ""
     ```
+</details>
