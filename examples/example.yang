@@ -1,0 +1,4 @@
+module system {
+    prefix "sys";
+    namespace "system";
+}
