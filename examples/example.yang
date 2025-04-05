@@ -1,4 +1,26 @@
 module system {
     prefix "sys";
-    namespace "system";
+    namespace "org.system";
+    yang-version 1.1;
+
+    organization "System Organization";
+    contact "test@system.org";
+    description "System module";
+    reference "See system.com";
+
+    revision "2025-04-02" {
+        description "Initial revision";
+        reference "None";
+    }
+
+    import ietf-yang-types {
+        prefix "yang";
+    }
+
+    import ietf-inet-types {
+        prefix "inet";
+        revision-date "2023-01-01";
+        description "Internet types";
+        reference "https://tools.ietf.org/html/rfc791";
+    }
 }

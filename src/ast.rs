@@ -6,7 +6,7 @@ pub enum YangFile {
 }
 
 /// Represents a YANG module
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Module {
     pub name: String,
     pub yang_version: Option<String>,
@@ -39,7 +39,7 @@ pub struct BelongsTo {
 }
 
 /// Import statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Import {
     pub module: String,
     pub prefix: String,
@@ -49,7 +49,7 @@ pub struct Import {
 }
 
 /// Include statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Include {
     pub module: String,
     pub revision_date: Option<String>,
@@ -67,7 +67,7 @@ pub struct MetaInfo {
 }
 
 /// Revision history
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Revision {
     pub date: String,
     pub description: Option<String>,
