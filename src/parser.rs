@@ -36,21 +36,188 @@ impl YangParser {
                 Rule::contact => module.meta.contact = Some(Self::parse_string(child)),
                 Rule::description => module.meta.description = Some(Self::parse_string(child)),
                 Rule::reference => module.meta.reference = Some(Self::parse_string(child)),
-                Rule::revision => {
-                    module.revisions.push(Self::parse_revision(child));
-                }
-                Rule::import => {
-                    module.imports.push(Self::parse_import(child));
-                }
-                Rule::include => {
-                    module.includes.push(Self::parse_include(child));
-                }
-
+                Rule::revision => module.revisions.push(Self::parse_revision(child)),
+                Rule::import => module.imports.push(Self::parse_import(child)),
+                Rule::include => module.includes.push(Self::parse_include(child)),
+                Rule::body => module.body.push(Self::parse_body(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
 
         module
+    }
+
+    fn parse_body(input: Pair<Rule>) -> SchemaNode {
+        let node = input.into_inner().next().unwrap();
+
+        match node.as_rule() {
+            Rule::typedef => Self::parse_typedef(node),
+            _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
+        }
+    }
+
+    fn parse_typedef(input: Pair<Rule>) -> SchemaNode {
+        let mut type_def = TypeDef::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => type_def.name = Self::parse_string(child),
+                Rule::type_info => type_def.type_info = Self::parse_type_info(child),
+                Rule::units => type_def.units = Some(Self::parse_string(child)),
+                Rule::default => type_def.default = Some(Self::parse_string(child)),
+                Rule::status => type_def.status = Some(Self::parse_status(child)),
+                Rule::description => type_def.description = Some(Self::parse_string(child)),
+                Rule::reference => type_def.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        SchemaNode::TypeDef(type_def)
+    }
+
+    fn parse_type_info(input: Pair<Rule>) -> TypeInfo {
+        let mut type_info = TypeInfo::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => type_info.name = Self::parse_string(child),
+                Rule::numberical_restriction => {
+                    type_info.type_body = Some(Self::parse_numerical(child))
+                }
+                Rule::decimal64_specification => {
+                    type_info.type_body = Some(Self::parse_decimal(child))
+                }
+                Rule::string_restriction => {
+                    type_info.type_body = Some(Self::parse_string_restriction(child))
+                }
+                Rule::enum_specification => type_info.type_body = Some(Self::parse_enum(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        return type_info;
+    }
+
+    fn parse_string_restriction(input: Pair<Rule>) -> TypeBody {
+        let mut length = None;
+        let mut patterns = Vec::new();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::length => length = Some(Self::parse_length(child)),
+                Rule::pattern => patterns.push(Self::parse_pattern(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        TypeBody::String { length, patterns }
+    }
+
+    fn parse_decimal(input: Pair<Rule>) -> TypeBody {
+        let mut decimal_node = input.into_inner();
+        let fractional_digits = Self::parse_string(decimal_node.next().unwrap());
+
+        match decimal_node.next() {
+            Some(range) => TypeBody::Decimal64 {
+                fraction_digits: fractional_digits,
+                range: Some(Self::parse_range(range)),
+            },
+            None => TypeBody::Decimal64 {
+                fraction_digits: fractional_digits,
+                range: None,
+            },
+        }
+    }
+
+    fn parse_numerical(input: Pair<Rule>) -> TypeBody {
+        TypeBody::Numerical {
+            range: Self::parse_range(input.into_inner().next().unwrap()),
+        }
+    }
+
+    fn parse_enum(input: Pair<Rule>) -> TypeBody {
+        let mut enums = Vec::new();
+        for enum_child in input.into_inner() {
+            let mut enum_value = EnumValue::default();
+            for child in enum_child.into_inner() {
+                match child.as_rule() {
+                    Rule::string => enum_value.name = Self::parse_string(child),
+                    Rule::if_feature => enum_value.if_features.push(Self::parse_string(child)),
+                    Rule::value => enum_value.value = Some(Self::parse_integer(child)),
+                    Rule::status => enum_value.status = Some(Self::parse_status(child)),
+                    Rule::description => enum_value.description = Some(Self::parse_string(child)),
+                    Rule::reference => enum_value.reference = Some(Self::parse_string(child)),
+                    _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+                }
+            }
+            enums.push(enum_value);
+        }
+
+        TypeBody::Enum { enums }
+    }
+
+    fn parse_pattern(input: Pair<Rule>) -> Pattern {
+        let mut pattern = Pattern::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => pattern.value = Self::parse_string(child),
+                Rule::error_message => pattern.error_message = Some(Self::parse_string(child)),
+                Rule::error_app_tag => pattern.error_app_tag = Some(Self::parse_string(child)),
+                Rule::description => pattern.description = Some(Self::parse_string(child)),
+                Rule::reference => pattern.reference = Some(Self::parse_string(child)),
+                Rule::modifier => {
+                    pattern.modifier = Some(child.into_inner().next().unwrap().as_str().to_string())
+                }
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        pattern
+    }
+
+    fn parse_length(input: Pair<Rule>) -> Length {
+        let mut length = Length::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => length.value = Self::parse_string(child),
+                Rule::error_message => length.error_message = Some(Self::parse_string(child)),
+                Rule::error_app_tag => length.error_app_tag = Some(Self::parse_string(child)),
+                Rule::description => length.description = Some(Self::parse_string(child)),
+                Rule::reference => length.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        length
+    }
+
+    fn parse_range(input: Pair<Rule>) -> Range {
+        let mut range = Range::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => range.value = Self::parse_string(child),
+                Rule::error_message => range.error_message = Some(Self::parse_string(child)),
+                Rule::error_app_tag => range.error_app_tag = Some(Self::parse_string(child)),
+                Rule::description => range.description = Some(Self::parse_string(child)),
+                Rule::reference => range.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        range
+    }
+
+    fn parse_status(input: Pair<Rule>) -> Status {
+        let status = input.into_inner().next().unwrap();
+        match status.as_str() {
+            "current" => Status::Current,
+            "obsolete" => Status::Obsolete,
+            "deprecated" => Status::Deprecated,
+            _ => unreachable!("Unexpected status: {:?}", status),
+        }
     }
 
     fn parse_revision(input: Pair<Rule>) -> Revision {
@@ -100,6 +267,11 @@ impl YangParser {
         }
 
         include
+    }
+
+    fn parse_integer(input: Pair<Rule>) -> i32 {
+        let value = input.into_inner().next().unwrap();
+        value.as_str().parse().unwrap()
     }
 
     fn parse_string(input: Pair<Rule>) -> String {

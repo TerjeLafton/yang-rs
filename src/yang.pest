@@ -9,7 +9,7 @@ submodule        =  { "submodule" ~ string ~ "{" ~ (submodule_header | linkage |
 submodule_header = _{ yang_version | belongs_to }
 
 // Module components
-body = _{ extension | feature | identity | typedef | grouping | data_def | augment | rpc | notification | deviation }
+body = { extension | feature | identity | typedef | grouping | data_def | augment | rpc | notification | deviation }
 
 // Linkage and meta components
 linkage = _{ import | include }
@@ -37,10 +37,10 @@ container      =  { "container" ~ string ~ (";" | "{" ~ container_body* ~ "}") }
 container_body = _{ when | if_feature | must | presence | config | status | description | reference | typedef | grouping | data_def | action | notification }
 
 leaf      =  { "leaf" ~ string ~ "{" ~ leaf_body+ ~ "}" }
-leaf_body = _{ when | if_feature | type | units | must | default | config | mandatory | status | description | reference }
+leaf_body = _{ when | if_feature | type_info | units | must | default | config | mandatory | status | description | reference }
 
 leaf_list      =  { "leaf-list" ~ string ~ "{" ~ leaf_list_body+ ~ "}" }
-leaf_list_body = _{ when | if_feature | type | units | must | default | config | min_elements | max_elements | ordered_by | status | description | reference }
+leaf_list_body = _{ when | if_feature | type_info | units | must | default | config | min_elements | max_elements | ordered_by | status | description | reference }
 
 list      =  { "list" ~ string ~ (";" | "{" ~ list_body* ~ "}") }
 list_body = _{ when | if_feature | must | key | unique | config | min_elements | max_elements | ordered_by | status | description | reference | typedef | grouping | data_def | action | notification }
@@ -67,9 +67,9 @@ uses_body = _{ when | if_feature | status | description | reference | refine | a
 
 // Type definitions
 typedef      =  { "typedef" ~ string ~ "{" ~ typedef_body+ ~ "}" }
-typedef_body = _{ type | units | default | status | description | reference }
+typedef_body = _{ type_info | units | default | status | description | reference }
 
-type      =  { "type" ~ string ~ (";" | "{" ~ type_body ~ "}") }
+type_info =  { "type" ~ string ~ (";" | "{" ~ type_body ~ "}") }
 type_body = _{
     numberical_restriction
   | decimal64_specification
@@ -92,7 +92,7 @@ leafref_specification             = { path ~ require_instance? }
 identityref_specification         = { base+ }
 instance_identifier_specification = { require_instance }
 bits_specification                = { bit+ }
-union_specification               = { type+ }
+union_specification               = { type_info+ }
 binary_specification              = { length? }
 
 // Identity and features
@@ -116,28 +116,29 @@ deviate_delete      =  { "deviate_delete" ~ string ~ (";" | "{" ~ deviate_delete
 deviate_delete_body = _{ units | must | unique | default }
 
 deviate_replace      =  { "deviate_replace" ~ string ~ (";" | "{" ~ deviate_replace_body* ~ "}") }
-deviate_replace_body = _{ type | units | default | config | mandatory | min_elements | max_elements }
+deviate_replace_body = _{ type_info | units | default | config | mandatory | min_elements | max_elements }
 
-refine      = { "refine" ~ string ~ "{" ~ refine_body* ~ "}" }
-refine_body = { if_feature | must | presence | default | config | mandatory | min_elements | max_elements | description | reference }
+refine      =  { "refine" ~ string ~ "{" ~ refine_body* ~ "}" }
+refine_body = _{ if_feature | must | presence | default | config | mandatory | min_elements | max_elements | description | reference }
 
 // Constraints and modifiers
-must      = { "must" ~ string ~ (";" | "{" ~ must_body* ~ "}") }
-must_body = { error_message | error_app_tag | description | reference }
+must      =  { "must" ~ string ~ (";" | "{" ~ must_body* ~ "}") }
+must_body = _{ error_message | error_app_tag | description | reference }
 
 when       = { "when" ~ string ~ (";" | "{" ~ (description | reference)+ ~ "}") }
 if_feature = { "if-feature" ~ string ~ ";" }
 
 // Range and length specifications
-range      = { "range" ~ string ~ (";" | "{" ~ range_body* ~ "}") }
-range_body = { error_message | error_app_tag | description | reference }
+range      =  { "range" ~ string ~ (";" | "{" ~ range_body* ~ "}") }
+range_body = _{ error_message | error_app_tag | description | reference }
 
 length      = { "length" ~ string ~ (";" | "{" ~ length_body* ~ "}") }
 length_body = { error_message | error_app_tag | description | reference }
 
-pattern      = { "pattern" ~ string ~ (";" | "{" ~ pattern_body* ~ "}")* }
-pattern_body = { modifier | error_message | error_app_tag | description | reference }
-modifier     = { "modifier" ~ "invert-match" }
+pattern        =  { "pattern" ~ string ~ (";" | "{" ~ pattern_body* ~ "}")* }
+pattern_body   = _{ modifier | error_message | error_app_tag | description | reference }
+modifier       =  { "modifier" ~ modifier_value ~ ";" }
+modifier_value =  { "invert-match" }
 
 // Enum and bit specifications
 enum      =  { "enum" ~ string ~ (";" | "{" ~ enum_body* ~ "}") }
@@ -145,10 +146,6 @@ enum_body = _{ if_feature | value | status | description | reference }
 
 bit      =  { "bit" ~ string ~ (";" | "{" ~ bit_body* ~ "}") }
 bit_body = _{ if_feature | position | status | description | reference }
-
-// Fraction digits for decimal64
-fraction_digits          =  { "fraction-digits" ~ fraction_digits_argument }
-fraction_digits_argument = @{ "1" ~ ("0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8")? | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" }
 
 // Simple properties and attributes
 revision = { "revision" ~ string ~ (";" | "{" ~ (description | reference)* ~ "}") }
@@ -165,7 +162,8 @@ revision_date      = { "revision-date" ~ string ~ ";" }
 units              = { "units" ~ string ~ ";" }
 belongs_to         = { "belongs-to" ~ string ~ "{" ~ prefix ~ "}" }
 yin_element        = { "yin-element" ~ boolean ~ ";" }
-status             = { "status" ~ ("current" | "obsolete" | "deprecated") }
+status             = { "status" ~ status_value ~ ";" }
+status_value       = { "current" | "obsolete" | "deprecated" }
 default            = { "default" ~ string ~ ";" }
 config             = { "config" ~ boolean ~ ";" }
 mandatory          = { "mandatory" ~ boolean ~ ";" }
@@ -184,6 +182,7 @@ max_elements       = { "max-elements" ~ max_elements_value ~ ";" }
 max_elements_value = { "unbounded" | "\"unbounded\"" | integer }
 ordered_by         = { "ordered-by" ~ ordered_by_value ~ ";" }
 ordered_by_value   = { "user" | "system" }
+fraction_digits    = { "fraction-digits" ~ string ~ ";" }
 
 // Basic types and strings
 string               =  { unquoted_string | quoted_string ~ ("+" ~ quoted_string)* }

@@ -20,7 +20,7 @@ pub struct Module {
 }
 
 /// Represents a YANG submodule
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Submodule {
     pub name: String,
     pub yang_version: Option<String>,
@@ -32,7 +32,7 @@ pub struct Submodule {
     pub body: Vec<SchemaNode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BelongsTo {
     pub module: String,
     pub prefix: String,
@@ -97,7 +97,7 @@ pub enum SchemaNode {
 }
 
 /// Container statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Container {
     pub name: String,
     pub when: Option<When>,
@@ -116,7 +116,7 @@ pub struct Container {
 }
 
 /// Leaf statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Leaf {
     pub name: String,
     pub when: Option<When>,
@@ -133,7 +133,7 @@ pub struct Leaf {
 }
 
 /// Leaf-list statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LeafList {
     pub name: String,
     pub when: Option<When>,
@@ -152,7 +152,7 @@ pub struct LeafList {
 }
 
 /// List statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct List {
     pub name: String,
     pub when: Option<When>,
@@ -175,7 +175,7 @@ pub struct List {
 }
 
 /// Choice statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Choice {
     pub name: String,
     pub when: Option<When>,
@@ -190,7 +190,7 @@ pub struct Choice {
 }
 
 /// Case statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Case {
     pub name: String,
     pub when: Option<When>,
@@ -202,7 +202,7 @@ pub struct Case {
 }
 
 /// Anydata statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Anydata {
     pub name: String,
     pub when: Option<When>,
@@ -216,7 +216,7 @@ pub struct Anydata {
 }
 
 /// Anyxml statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Anyxml {
     pub name: String,
     pub when: Option<When>,
@@ -230,7 +230,7 @@ pub struct Anyxml {
 }
 
 /// Uses statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Uses {
     pub grouping: String,
     pub when: Option<When>,
@@ -243,7 +243,7 @@ pub struct Uses {
 }
 
 /// Typedef statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TypeDef {
     pub name: String,
     pub type_info: TypeInfo,
@@ -255,7 +255,7 @@ pub struct TypeDef {
 }
 
 /// Type information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TypeInfo {
     pub name: String,
     pub type_body: Option<TypeBody>,
@@ -265,10 +265,10 @@ pub struct TypeInfo {
 #[derive(Debug, Clone)]
 pub enum TypeBody {
     Numerical {
-        range: Option<Range>,
+        range: Range,
     },
     Decimal64 {
-        fraction_digits: u8,
+        fraction_digits: String,
         range: Option<Range>,
     },
     String {
@@ -300,7 +300,7 @@ pub enum TypeBody {
 }
 
 /// Range restriction
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Range {
     pub value: String,
     pub error_message: Option<String>,
@@ -310,7 +310,7 @@ pub struct Range {
 }
 
 /// Length restriction
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Length {
     pub value: String,
     pub error_message: Option<String>,
@@ -320,7 +320,7 @@ pub struct Length {
 }
 
 /// Pattern restriction
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Pattern {
     pub value: String,
     pub modifier: Option<String>,
@@ -331,7 +331,7 @@ pub struct Pattern {
 }
 
 /// Enum value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EnumValue {
     pub name: String,
     pub if_features: Vec<String>,
@@ -342,7 +342,7 @@ pub struct EnumValue {
 }
 
 /// Bit value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Bit {
     pub name: String,
     pub if_features: Vec<String>,
@@ -353,7 +353,7 @@ pub struct Bit {
 }
 
 /// Grouping statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Grouping {
     pub name: String,
     pub status: Option<Status>,
@@ -367,7 +367,7 @@ pub struct Grouping {
 }
 
 /// Extension statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Extension {
     pub name: String,
     pub argument: Option<Argument>,
@@ -377,14 +377,14 @@ pub struct Extension {
 }
 
 /// Argument for extension
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Argument {
     pub name: String,
     pub yin_element: Option<bool>,
 }
 
 /// Feature statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Feature {
     pub name: String,
     pub if_features: Vec<String>,
@@ -394,7 +394,7 @@ pub struct Feature {
 }
 
 /// Identity statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Identity {
     pub name: String,
     pub if_features: Vec<String>,
@@ -405,7 +405,7 @@ pub struct Identity {
 }
 
 /// Augment statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Augment {
     pub target: String,
     pub when: Option<When>,
@@ -420,7 +420,7 @@ pub struct Augment {
 }
 
 /// RPC statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Rpc {
     pub name: String,
     pub if_features: Vec<String>,
@@ -435,7 +435,7 @@ pub struct Rpc {
 }
 
 /// Input statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Input {
     pub must: Vec<Must>,
     pub typedefs: Vec<TypeDef>,
@@ -444,7 +444,7 @@ pub struct Input {
 }
 
 /// Output statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Output {
     pub must: Vec<Must>,
     pub typedefs: Vec<TypeDef>,
@@ -453,7 +453,7 @@ pub struct Output {
 }
 
 /// Action statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Action {
     pub name: String,
     pub if_features: Vec<String>,
@@ -468,7 +468,7 @@ pub struct Action {
 }
 
 /// Notification statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Notification {
     pub name: String,
     pub if_features: Vec<String>,
@@ -482,7 +482,7 @@ pub struct Notification {
 }
 
 /// Deviation statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Deviation {
     pub target: String,
     pub description: Option<String>,
@@ -494,7 +494,7 @@ pub struct Deviation {
 }
 
 /// Deviate add
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeviateAdd {
     pub units: Option<String>,
     pub must: Vec<Must>,
@@ -507,7 +507,7 @@ pub struct DeviateAdd {
 }
 
 /// Deviate delete
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeviateDelete {
     pub units: Option<String>,
     pub must: Vec<Must>,
@@ -516,7 +516,7 @@ pub struct DeviateDelete {
 }
 
 /// Deviate replace
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeviateReplace {
     pub type_info: Option<TypeInfo>,
     pub units: Option<String>,
@@ -528,7 +528,7 @@ pub struct DeviateReplace {
 }
 
 /// Refine statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Refine {
     pub target: String,
     pub if_features: Vec<String>,
@@ -544,7 +544,7 @@ pub struct Refine {
 }
 
 /// Must statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Must {
     pub condition: String,
     pub error_message: Option<String>,
@@ -554,7 +554,7 @@ pub struct Must {
 }
 
 /// When statement
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct When {
     pub condition: String,
     pub description: Option<String>,
@@ -562,22 +562,25 @@ pub struct When {
 }
 
 /// Max elements value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum MaxElements {
+    #[default]
     Unbounded,
     Value(u32),
 }
 
 /// Ordered by value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum OrderedBy {
     User,
+    #[default]
     System,
 }
 
 /// Status value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Status {
+    #[default]
     Current,
     Obsolete,
     Deprecated,

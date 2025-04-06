@@ -21,4 +21,64 @@ module system {
     }
 
     include example-types;
+
+    typedef percent {
+        description "Percentage value";
+        type uint8 {
+            range "0..100" {
+                error-message "Value must be between 0 and 100";
+                error-app-tag "PERCENT_RANGE_ERROR";
+                description "Percentage value";
+                reference "https://tools.ietf.org/html/rfc791";
+            }
+        }
+        units "percent";
+    }
+
+    typedef temperature {
+        type decimal64 {
+            fraction-digits 2;
+            range "-50.00..100.00";
+        }
+        units "degrees Celsius";
+        description "Temperature value with 2 decimal places";
+    }
+
+    typedef hostname {
+        type string {
+            length "1..253";
+            pattern '[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)*';
+            pattern '.*[a-zA-Z].*' {
+                modifier invert-match;
+            }
+        }
+        description "A domain name as specified in RFC 1034 with restrictions from RFC 952";
+        reference "RFC 1034, RFC 952";
+    }
+
+    typedef connection-status {
+        type enumeration {
+            enum connected {
+                description "The connection is active and operating normally";
+                value 1;
+            }
+            enum disconnected {
+                if-feature "advanced-status-reporting";
+                if-feature "disconnection-support";
+                description "The connection is inactive";
+                value 2;
+            }
+            enum connecting {
+                description "The connection is being established";
+                value 3;
+            }
+            enum failed {
+                description "The connection has failed";
+                value 4;
+                status deprecated;
+            }
+        }
+        description "The operational status of a connection";
+        reference "RFC XYZ, Section 3.2";
+    }
 }
