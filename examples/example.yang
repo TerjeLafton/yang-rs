@@ -13,14 +13,12 @@ module system {
         reference "None";
     }
 
-    import ietf-yang-types {
-        prefix "yang";
-    }
-
     import ietf-inet-types {
         prefix "inet";
         revision-date "2023-01-01";
         description "Internet types";
         reference "https://tools.ietf.org/html/rfc791";
     }
+
+    include example-types;
 }

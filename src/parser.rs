@@ -29,28 +29,21 @@ impl YangParser {
             match child.as_rule() {
                 // String here always means the name of the module
                 Rule::string => module.name = Self::parse_string(child),
-                Rule::prefix => module.prefix = Self::parse_single_string_statement(child),
-                Rule::namespace => module.namespace = Self::parse_single_string_statement(child),
-                Rule::yang_version => {
-                    module.yang_version = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::organization => {
-                    module.meta.organization = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::contact => {
-                    module.meta.contact = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::description => {
-                    module.meta.description = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::reference => {
-                    module.meta.reference = Some(Self::parse_single_string_statement(child))
-                }
+                Rule::prefix => module.prefix = Self::parse_string(child),
+                Rule::namespace => module.namespace = Self::parse_string(child),
+                Rule::yang_version => module.yang_version = Some(Self::parse_string(child)),
+                Rule::organization => module.meta.organization = Some(Self::parse_string(child)),
+                Rule::contact => module.meta.contact = Some(Self::parse_string(child)),
+                Rule::description => module.meta.description = Some(Self::parse_string(child)),
+                Rule::reference => module.meta.reference = Some(Self::parse_string(child)),
                 Rule::revision => {
                     module.revisions.push(Self::parse_revision(child));
                 }
                 Rule::import => {
                     module.imports.push(Self::parse_import(child));
+                }
+                Rule::include => {
+                    module.includes.push(Self::parse_include(child));
                 }
 
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
@@ -67,12 +60,8 @@ impl YangParser {
             match child.as_rule() {
                 // String here always means the date of the module
                 Rule::string => revision.date = Self::parse_string(child),
-                Rule::description => {
-                    revision.description = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::reference => {
-                    revision.reference = Some(Self::parse_single_string_statement(child))
-                }
+                Rule::description => revision.description = Some(Self::parse_string(child)),
+                Rule::reference => revision.reference = Some(Self::parse_string(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -86,16 +75,10 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::string => import.module = Self::parse_string(child),
-                Rule::prefix => import.prefix = Self::parse_single_string_statement(child),
-                Rule::revision_date => {
-                    import.revision_date = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::description => {
-                    import.description = Some(Self::parse_single_string_statement(child))
-                }
-                Rule::reference => {
-                    import.reference = Some(Self::parse_single_string_statement(child))
-                }
+                Rule::prefix => import.prefix = Self::parse_string(child),
+                Rule::revision_date => import.revision_date = Some(Self::parse_string(child)),
+                Rule::description => import.description = Some(Self::parse_string(child)),
+                Rule::reference => import.reference = Some(Self::parse_string(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -103,14 +86,27 @@ impl YangParser {
         import
     }
 
-    fn parse_single_string_statement(input: Pair<Rule>) -> String {
-        let value = input.into_inner().next().unwrap();
-        Self::parse_string(value)
+    fn parse_include(input: Pair<Rule>) -> Include {
+        let mut include = Include::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => include.module = Self::parse_string(child),
+                Rule::revision_date => include.revision_date = Some(Self::parse_string(child)),
+                Rule::description => include.description = Some(Self::parse_string(child)),
+                Rule::reference => include.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        include
     }
 
     fn parse_string(input: Pair<Rule>) -> String {
         let value = input.into_inner().next().unwrap();
+
         match value.as_rule() {
+            Rule::string => Self::parse_string(value),
             Rule::unquoted_string => value.as_str().to_string(),
             Rule::double_quoted_string => {
                 let s = value.as_str();
