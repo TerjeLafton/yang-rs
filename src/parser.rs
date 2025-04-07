@@ -8,12 +8,14 @@ pub struct YangParser;
 
 impl YangParser {
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, Error<Rule>> {
-        let content = fs::read_to_string(path).expect("Failed to read file");
+        let content = fs::read_to_string(path).expect("file to be available");
         Self::parse(&content)
     }
 
     fn parse(input: &str) -> Result<YangFile, Error<Rule>> {
-        let module = YangModule::parse(Rule::file, input)?.next().unwrap();
+        let module = YangModule::parse(Rule::file, input)?
+            .next()
+            .expect("a yang file to always include a module");
 
         match module.as_rule() {
             Rule::module => Ok(YangFile::Module(Self::parse_module(module))),
@@ -27,7 +29,6 @@ impl YangParser {
 
         for child in pair.into_inner() {
             match child.as_rule() {
-                // String here always means the name of the module
                 Rule::string => module.name = Self::parse_string(child),
                 Rule::prefix => module.prefix = Self::parse_string(child),
                 Rule::namespace => module.namespace = Self::parse_string(child),
@@ -48,6 +49,8 @@ impl YangParser {
     }
 
     fn parse_body(input: Pair<Rule>) -> SchemaNode {
+        // Todo: Need to loop instead of only getting the next node
+        // Temporary implementation until Typedef is done, as it is quite big.
         let node = input.into_inner().next().unwrap();
 
         match node.as_rule() {
@@ -115,7 +118,11 @@ impl YangParser {
 
     fn parse_decimal(input: Pair<Rule>) -> TypeBody {
         let mut decimal_node = input.into_inner();
-        let fractional_digits = Self::parse_string(decimal_node.next().unwrap());
+        let fractional_digits = Self::parse_string(
+            decimal_node
+                .next()
+                .expect("decimal's first child always to be a fractional_digits node"),
+        );
 
         match decimal_node.next() {
             Some(range) => TypeBody::Decimal64 {
@@ -131,7 +138,12 @@ impl YangParser {
 
     fn parse_numerical(input: Pair<Rule>) -> TypeBody {
         TypeBody::Numerical {
-            range: Self::parse_range(input.into_inner().next().unwrap()),
+            range: Self::parse_range(
+                input
+                    .into_inner()
+                    .next()
+                    .expect("numerical to always have range as the only child"),
+            ),
         }
     }
 
@@ -166,9 +178,16 @@ impl YangParser {
                 Rule::error_app_tag => pattern.error_app_tag = Some(Self::parse_string(child)),
                 Rule::description => pattern.description = Some(Self::parse_string(child)),
                 Rule::reference => pattern.reference = Some(Self::parse_string(child)),
-                Rule::modifier => {
-                    pattern.modifier = Some(child.into_inner().next().unwrap().as_str().to_string())
-                }
+                Rule::modifier => pattern.modifier = Some(
+                    child
+                        .into_inner()
+                        .next()
+                        .expect(
+                            "modifier to always only have one child which, which is the invert-match string",
+                        )
+                        .as_str()
+                        .to_string(),
+                ),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -211,7 +230,11 @@ impl YangParser {
     }
 
     fn parse_status(input: Pair<Rule>) -> Status {
-        let status = input.into_inner().next().unwrap();
+        let status = input
+            .into_inner()
+            .next()
+            .expect("status to always have a status_value as the only child");
+
         match status.as_str() {
             "current" => Status::Current,
             "obsolete" => Status::Obsolete,
@@ -225,7 +248,6 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
-                // String here always means the date of the module
                 Rule::string => revision.date = Self::parse_string(child),
                 Rule::description => revision.description = Some(Self::parse_string(child)),
                 Rule::reference => revision.reference = Some(Self::parse_string(child)),
@@ -270,12 +292,20 @@ impl YangParser {
     }
 
     fn parse_integer(input: Pair<Rule>) -> i32 {
-        let value = input.into_inner().next().unwrap();
-        value.as_str().parse().unwrap()
+        input
+            .into_inner()
+            .next()
+            .expect("integer to always have the integers value as the only child")
+            .as_str()
+            .parse()
+            .expect("integer value to always be a valid integer")
     }
 
     fn parse_string(input: Pair<Rule>) -> String {
-        let value = input.into_inner().next().unwrap();
+        let value = input
+            .into_inner()
+            .next()
+            .expect("string to always have the string value as the only child");
 
         match value.as_rule() {
             Rule::string => Self::parse_string(value),
