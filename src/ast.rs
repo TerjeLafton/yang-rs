@@ -286,7 +286,7 @@ pub enum TypeBody {
         bases: Vec<String>,
     },
     InstanceIdentifier {
-        require_instance: Option<bool>,
+        require_instance: bool,
     },
     Bits {
         bits: Vec<Bit>,
@@ -346,7 +346,7 @@ pub struct EnumValue {
 pub struct Bit {
     pub name: String,
     pub if_features: Vec<String>,
-    pub position: Option<u32>,
+    pub position: Option<i32>,
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,

@@ -84,21 +84,98 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::string => type_info.name = Self::parse_string(child),
-                Rule::numberical_restriction => {
-                    type_info.type_body = Some(Self::parse_numerical(child))
-                }
-                Rule::decimal64_specification => {
-                    type_info.type_body = Some(Self::parse_decimal(child))
-                }
-                Rule::string_restriction => {
-                    type_info.type_body = Some(Self::parse_string_restriction(child))
-                }
+                Rule::numberical_restriction => type_info.type_body = Some(Self::parse_numerical(child)),
+                Rule::decimal64_specification => type_info.type_body = Some(Self::parse_decimal(child)),
+                Rule::string_restriction => type_info.type_body = Some(Self::parse_string_restriction(child)),
                 Rule::enum_specification => type_info.type_body = Some(Self::parse_enum(child)),
+                Rule::leafref_specification => type_info.type_body = Some(Self::parse_leafref(child)),
+                Rule::identityref_specification => type_info.type_body = Some(Self::parse_identityref(child)),
+                Rule::bits_specification => type_info.type_body = Some(Self::parse_bit_specification(child)),
+                Rule::binary_specification => type_info.type_body = Some(Self::parse_binary_specification(child)),
+                Rule::union_specification => type_info.type_body = Some(Self::parse_union_specification(child)),
+                Rule::instance_identifier_specification => {
+                    type_info.type_body = Some(Self::parse_instance_identifier(child))
+                }
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
 
         return type_info;
+    }
+
+    fn parse_union_specification(input: Pair<Rule>) -> TypeBody {
+        let mut types = Vec::new();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::type_info => types.push(Self::parse_type_info(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        TypeBody::Union { types }
+    }
+
+    fn parse_binary_specification(input: Pair<Rule>) -> TypeBody {
+        match input.into_inner().next() {
+            Some(length) => TypeBody::Binary {
+                length: Some(Self::parse_length(length)),
+            },
+            None => TypeBody::Binary { length: None },
+        }
+    }
+
+    fn parse_bit_specification(input: Pair<Rule>) -> TypeBody {
+        let mut bits = Vec::new();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::bit => bits.push(Self::parse_bit(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        TypeBody::Bits { bits }
+    }
+
+    fn parse_identityref(input: Pair<Rule>) -> TypeBody {
+        let mut bases = Vec::new();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::base => bases.push(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        TypeBody::Identityref { bases }
+    }
+
+    fn parse_instance_identifier(input: Pair<Rule>) -> TypeBody {
+        TypeBody::InstanceIdentifier {
+            require_instance: Self::parse_boolean(
+                input
+                    .into_inner()
+                    .next()
+                    .expect("instance identifier to always have a require instance node"),
+            ),
+        }
+    }
+
+    fn parse_leafref(input: Pair<Rule>) -> TypeBody {
+        let mut leafref = input.into_inner();
+        let path = Self::parse_string(leafref.next().expect("first child of leafref to be the path"));
+
+        match leafref.next() {
+            Some(require_instance) => TypeBody::Leafref {
+                path,
+                require_instance: Some(Self::parse_boolean(require_instance)),
+            },
+            None => TypeBody::Leafref {
+                path,
+                require_instance: None,
+            },
+        }
     }
 
     fn parse_string_restriction(input: Pair<Rule>) -> TypeBody {
@@ -168,6 +245,24 @@ impl YangParser {
         TypeBody::Enum { enums }
     }
 
+    fn parse_bit(input: Pair<Rule>) -> Bit {
+        let mut bit = Bit::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => bit.name = Self::parse_string(child),
+                Rule::if_feature => bit.if_features.push(Self::parse_string(child)),
+                Rule::position => bit.position = Some(Self::parse_integer(child)),
+                Rule::status => bit.status = Some(Self::parse_status(child)),
+                Rule::description => bit.description = Some(Self::parse_string(child)),
+                Rule::reference => bit.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        bit
+    }
+
     fn parse_pattern(input: Pair<Rule>) -> Pattern {
         let mut pattern = Pattern::default();
 
@@ -178,16 +273,16 @@ impl YangParser {
                 Rule::error_app_tag => pattern.error_app_tag = Some(Self::parse_string(child)),
                 Rule::description => pattern.description = Some(Self::parse_string(child)),
                 Rule::reference => pattern.reference = Some(Self::parse_string(child)),
-                Rule::modifier => pattern.modifier = Some(
-                    child
-                        .into_inner()
-                        .next()
-                        .expect(
-                            "modifier to always only have one child which, which is the invert-match string",
-                        )
-                        .as_str()
-                        .to_string(),
-                ),
+                Rule::modifier => {
+                    pattern.modifier = Some(
+                        child
+                            .into_inner()
+                            .next()
+                            .expect("modifier to always only have one child which, which is the invert-match string")
+                            .as_str()
+                            .to_string(),
+                    )
+                }
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -289,6 +384,19 @@ impl YangParser {
         }
 
         include
+    }
+
+    fn parse_boolean(input: Pair<Rule>) -> bool {
+        let value = input
+            .into_inner()
+            .next()
+            .expect("boolean to always have the bool value as the only child");
+
+        match value.as_str() {
+            "true" => true,
+            "false" => false,
+            _ => unreachable!("Unexpected value: {:?}", value.as_str()),
+        }
     }
 
     fn parse_integer(input: Pair<Rule>) -> i32 {

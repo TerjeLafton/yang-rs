@@ -81,4 +81,71 @@ module system {
         description "The operational status of a connection";
         reference "RFC XYZ, Section 3.2";
     }
+
+
+    typedef interface-name {
+        type leafref {
+            path "/interfaces/interface/name";
+            require-instance true;
+        }
+        description "A reference to an existing interface name";
+        reference "RFC 8343: A YANG Data Model for Interface Management";
+    }
+
+    typedef config-target {
+        type instance-identifier {
+            require-instance true;
+        }
+        description "A reference to a specific configuration node in the data tree";
+        reference "RFC 6020, Section 9.13: The instance-identifier built-in type";
+    }
+
+    typedef interface-type {
+        type identityref {
+            base physical-interface;
+            base logical-interface;
+        }
+        description "A reference to an interface type identity";
+        reference "RFC 8343: A YANG Data Model for Interface Management";
+    }
+
+    typedef interface-flags {
+        type bits {
+            bit up {
+            position 0;
+            description "Interface is administratively up";
+            }
+            bit broadcast {
+            position 1;
+            description "Interface supports broadcast";
+            }
+            bit multicast {
+            position 2;
+            description "Interface supports multicast";
+            }
+        }
+        description "Flags indicating interface capabilities and state";
+        reference "RFC 8343: A YANG Data Model for Interface Management";
+    }
+
+    typedef certificate {
+        type binary {
+            length "128..4096";
+        }
+        description "An X.509 certificate in DER encoding";
+        reference "RFC 5280: Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile";
+    }
+
+    typedef ip-address {
+        type union {
+            type inet:ipv4-address {
+                pattern '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\p{N}\p{L}]+)?';
+            }
+            type inet:ipv6-address {
+                pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\p{N}\p{L}]+)?';
+            }
+        }
+        description "An IP address (either IPv4 or IPv6)";
+        reference "RFC 6991: Common YANG Data Types";
+    }
 }
