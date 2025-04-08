@@ -143,7 +143,7 @@ pub struct LeafList {
     pub must: Vec<Must>,
     pub default: Vec<String>,
     pub config: Option<bool>,
-    pub min_elements: Option<u32>,
+    pub min_elements: Option<i32>,
     pub max_elements: Option<MaxElements>,
     pub ordered_by: Option<OrderedBy>,
     pub status: Option<Status>,
@@ -566,7 +566,7 @@ pub struct When {
 pub enum MaxElements {
     #[default]
     Unbounded,
-    Value(u32),
+    Value(i32),
 }
 
 /// Ordered by value

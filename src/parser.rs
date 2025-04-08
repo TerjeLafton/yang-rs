@@ -49,17 +49,99 @@ impl YangParser {
     }
 
     fn parse_body(input: Pair<Rule>) -> SchemaNode {
-        // Todo: Need to loop instead of only getting the next node
-        // Temporary implementation until Typedef is done, as it is quite big.
         let node = input.into_inner().next().unwrap();
 
         match node.as_rule() {
-            Rule::typedef => Self::parse_typedef(node),
+            Rule::typedef => SchemaNode::TypeDef(Self::parse_typedef(node)),
+            Rule::extension => SchemaNode::Extension(Self::parse_extension(node)),
+            Rule::feature => SchemaNode::Feature(Self::parse_feature(node)),
+            Rule::leaf => SchemaNode::Leaf(Self::parse_leaf(node)),
+            Rule::leaf_list => SchemaNode::LeafList(Self::parse_leaf_list(node)),
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         }
     }
 
-    fn parse_typedef(input: Pair<Rule>) -> SchemaNode {
+    fn parse_feature(input: Pair<Rule>) -> Feature {
+        let mut feature = Feature::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => feature.name = Self::parse_string(child),
+                Rule::if_feature => feature.if_features.push(Self::parse_string(child)),
+                Rule::status => feature.status = Some(Self::parse_status(child)),
+                Rule::description => feature.description = Some(Self::parse_string(child)),
+                Rule::reference => feature.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        feature
+    }
+
+    fn parse_extension(input: Pair<Rule>) -> Extension {
+        let mut extension = Extension::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => extension.name = Self::parse_string(child),
+                Rule::argument => extension.argument = Some(Self::parse_argument(child)),
+                Rule::status => extension.status = Some(Self::parse_status(child)),
+                Rule::description => extension.description = Some(Self::parse_string(child)),
+                Rule::reference => extension.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        extension
+    }
+
+    fn parse_when(input: Pair<Rule>) -> When {
+        let mut when = When::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => when.condition = Self::parse_string(child),
+                Rule::description => when.description = Some(Self::parse_string(child)),
+                Rule::reference => when.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        when
+    }
+
+    fn parse_argument(input: Pair<Rule>) -> Argument {
+        let mut argument = Argument::default();
+        let mut input = input.into_inner();
+
+        argument.name = Self::parse_string(input.next().expect("first child to always be the name"));
+        if let Some(yin_element) = input.next() {
+            argument.yin_element = Some(Self::parse_boolean(yin_element))
+        }
+
+        argument
+    }
+
+    fn parse_grouping(input: Pair<Rule>) -> Grouping {
+        let mut grouping = Grouping::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => grouping.name = Self::parse_string(child),
+                Rule::status => grouping.status = Some(Self::parse_status(child)),
+                Rule::description => grouping.description = Some(Self::parse_string(child)),
+                Rule::reference => grouping.reference = Some(Self::parse_string(child)),
+                Rule::typedef => grouping.typedefs.push(Self::parse_typedef(child)),
+                Rule::grouping => grouping.groupings.push(Self::parse_grouping(child)),
+                Rule::data_def => grouping.children.push(Self::parse_body(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        grouping
+    }
+
+    fn parse_typedef(input: Pair<Rule>) -> TypeDef {
         let mut type_def = TypeDef::default();
 
         for child in input.into_inner() {
@@ -75,7 +157,56 @@ impl YangParser {
             }
         }
 
-        SchemaNode::TypeDef(type_def)
+        type_def
+    }
+    fn parse_leaf_list(input: Pair<Rule>) -> LeafList {
+        let mut leaf_list = LeafList::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => leaf_list.name = Self::parse_string(child),
+                Rule::when => leaf_list.when = Some(Self::parse_when(child)),
+                Rule::if_feature => leaf_list.if_features.push(Self::parse_string(child)),
+                Rule::type_info => leaf_list.type_info = Self::parse_type_info(child),
+                Rule::units => leaf_list.units = Some(Self::parse_string(child)),
+                Rule::must => leaf_list.must.push(Self::parse_must(child)),
+                Rule::default => leaf_list.default.push(Self::parse_string(child)),
+                Rule::config => leaf_list.config = Some(Self::parse_boolean(child)),
+                Rule::ordered_by => leaf_list.ordered_by = Some(Self::parse_ordered_by(child)),
+                Rule::min_elements => leaf_list.min_elements = Some(Self::parse_integer(child)),
+                Rule::max_elements => leaf_list.max_elements = Some(Self::parse_max_elements(child)),
+                Rule::status => leaf_list.status = Some(Self::parse_status(child)),
+                Rule::description => leaf_list.description = Some(Self::parse_string(child)),
+                Rule::reference => leaf_list.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        leaf_list
+    }
+
+    fn parse_leaf(input: Pair<Rule>) -> Leaf {
+        let mut leaf = Leaf::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => leaf.name = Self::parse_string(child),
+                Rule::when => leaf.when = Some(Self::parse_when(child)),
+                Rule::if_feature => leaf.if_features.push(Self::parse_string(child)),
+                Rule::type_info => leaf.type_info = Self::parse_type_info(child),
+                Rule::units => leaf.units = Some(Self::parse_string(child)),
+                Rule::must => leaf.must.push(Self::parse_must(child)),
+                Rule::default => leaf.default = Some(Self::parse_string(child)),
+                Rule::config => leaf.config = Some(Self::parse_boolean(child)),
+                Rule::mandatory => leaf.mandatory = Some(Self::parse_boolean(child)),
+                Rule::status => leaf.status = Some(Self::parse_status(child)),
+                Rule::description => leaf.description = Some(Self::parse_string(child)),
+                Rule::reference => leaf.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        leaf
     }
 
     fn parse_type_info(input: Pair<Rule>) -> TypeInfo {
@@ -307,6 +438,23 @@ impl YangParser {
         length
     }
 
+    fn parse_must(input: Pair<Rule>) -> Must {
+        let mut must = Must::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => must.condition = Self::parse_string(child),
+                Rule::error_message => must.error_message = Some(Self::parse_string(child)),
+                Rule::error_app_tag => must.error_app_tag = Some(Self::parse_string(child)),
+                Rule::description => must.description = Some(Self::parse_string(child)),
+                Rule::reference => must.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        must
+    }
+
     fn parse_range(input: Pair<Rule>) -> Range {
         let mut range = Range::default();
 
@@ -335,6 +483,32 @@ impl YangParser {
             "obsolete" => Status::Obsolete,
             "deprecated" => Status::Deprecated,
             _ => unreachable!("Unexpected status: {:?}", status),
+        }
+    }
+
+    fn parse_ordered_by(input: Pair<Rule>) -> OrderedBy {
+        let ordered_by = input
+            .into_inner()
+            .next()
+            .expect("ordered-by to always have a ordered_by_value as the only child");
+
+        match ordered_by.as_str() {
+            "user" => OrderedBy::User,
+            "system" => OrderedBy::System,
+            _ => unreachable!("Unexpected ordered-by: {:?}", ordered_by),
+        }
+    }
+
+    fn parse_max_elements(input: Pair<Rule>) -> MaxElements {
+        let max_elements = input
+            .into_inner()
+            .next()
+            .expect("max-elements to always have a max_elements_value as the only child");
+
+        match max_elements.as_rule() {
+            Rule::integer => MaxElements::Value(Self::parse_integer(max_elements)),
+            Rule::string => MaxElements::Unbounded,
+            _ => unreachable!("Unexpected rule: {:?}", max_elements),
         }
     }
 

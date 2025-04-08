@@ -148,4 +148,56 @@ module system {
         description "An IP address (either IPv4 or IPv6)";
         reference "RFC 6991: Common YANG Data Types";
     }
+
+    extension my-extension {
+        argument my-arg;
+        status current;
+        description "This is a custom extension that adds functionality X";
+        reference "RFC XXXX, Section Y.Y";
+    }
+
+    feature advanced-security {
+        if-feature basic-security;
+        status current;
+        description "Provides advanced security capabilities including encryption and key management";
+        reference "Security Framework v2.0, Section 3.4";
+    }
+
+    leaf interface-name {
+        when "../type = 'ethernet'";
+        if-feature ethernet-interfaces;
+        type string {
+            length "1..32";
+        }
+        units "chars";
+        must "not(contains(., ' '))";
+        default "eth0";
+        config true;
+        mandatory false;
+        status current;
+        description "The name of the network interface";
+        reference "Interface Naming Convention v1.2";
+    }
+
+    leaf-list supported-protocols {
+        when "../device-type = 'router'";
+        if-feature protocol-support;
+        type enumeration {
+            enum "http";
+            enum "https";
+            enum "ssh";
+            enum "telnet";
+            enum "snmp";
+        }
+        units "protocol";
+        must "count(.) > 0";
+        default "ssh";
+        config true;
+        min-elements 1;
+        max-elements "unbound";
+        ordered-by user;
+        status current;
+        description "List of management protocols supported by this device";
+        reference "Network Protocol Standards v3.0";
+    }
 }
