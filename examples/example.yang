@@ -8,79 +8,41 @@ module system {
     description "System module";
     reference "See system.com";
 
-notification interface-state-change {
-  if-feature interface-notifications;
-  status current;
-  description "Generated when an interface changes state";
-  reference "Interface Management Notification Framework v1.2";
-
-  typedef state-change-reason {
-    type enumeration {
-      enum admin-change;
-      enum link-failure;
-      enum protocol-failure;
-      enum remote-failure;
-      enum unknown;
-    }
-    description "Reason for the interface state change";
-  }
-
-  grouping common-state-fields {
-    leaf timestamp {
-      type yang:date-and-time;
-      description "Time when the state change occurred";
-    }
-
-    leaf admin-status-change {
-      type boolean;
-      description "True if administrative status changed";
-    }
-  }
-
-  leaf interface-name {
+list interface {
+  key "name";
+  description "List of network interfaces on the device";
+  leaf name {
     type string;
-    description "Name of the interface that changed state";
+    description "The name of the interface";
   }
 
-  leaf previous-state {
-    type enumeration {
-      enum up;
-      enum down;
-      enum testing;
-      enum unknown;
+  leaf enabled {
+    type boolean;
+    default true;
+    description "Whether the interface is enabled";
+  }
+
+  leaf mtu {
+    type uint16;
+    default 1500;
+    description "Maximum Transmission Unit";
+  }
+
+  leaf-list ip-address {
+    type inet:ip-address;
+    description "IP addresses configured on the interface";
+  }
+
+  container statistics {
+    config false;
+    description "Operational statistics for the interface";
+    leaf rx-packets {
+      type uint64;
+      description "Number of received packets";
     }
-    description "Previous operational state of the interface";
-  }
-
-  leaf current-state {
-    type enumeration {
-      enum up;
-      enum down;
-      enum testing;
-      enum unknown;
-    }
-    description "New operational state of the interface";
-  }
-
-  leaf reason {
-    type state-change-reason;
-    description "Reason for the state change";
-  }
-
-  uses common-state-fields;
-
-  container counters {
-    description "Interface counters at the time of state change";
-
-    leaf flap-count {
-      type uint32;
-      description "Number of state changes in the last hour";
-    }
-
-    leaf uptime {
-      type uint32;
-      units "seconds";
-      description "Time since the last state change";
+    leaf tx-packets {
+      type uint64;
+      description "Number of transmitted packets";
     }
   }
 }

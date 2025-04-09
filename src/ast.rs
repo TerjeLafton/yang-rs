@@ -113,9 +113,9 @@ pub struct Container {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -166,15 +166,15 @@ pub struct List {
     pub key: Option<String>,
     pub unique: Vec<String>,
     pub config: Option<bool>,
-    pub min_elements: Option<u32>,
+    pub min_elements: Option<i64>,
     pub max_elements: Option<MaxElements>,
     pub ordered_by: Option<OrderedBy>,
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -209,7 +209,7 @@ pub struct LongCase {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
 }
 
 #[derive(Debug, Clone)]
@@ -381,9 +381,9 @@ pub struct Grouping {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -435,7 +435,7 @@ pub struct Augment {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
     pub cases: Vec<Case>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -450,7 +450,7 @@ pub struct Rpc {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
     pub input: Option<Input>,
     pub output: Option<Output>,
@@ -460,18 +460,18 @@ pub struct Rpc {
 #[derive(Debug, Clone, Default)]
 pub struct Input {
     pub must: Vec<Must>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
 }
 
 /// Output statement
 #[derive(Debug, Clone, Default)]
 pub struct Output {
     pub must: Vec<Must>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
 }
 
 /// Action statement
@@ -483,7 +483,7 @@ pub struct Action {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
     pub input: Option<Input>,
     pub output: Option<Output>,
@@ -498,9 +498,9 @@ pub struct Notification {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub typedefs: Vec<TypeDef>,
+    pub type_defs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub datadefs: Vec<DataDef>,
+    pub data_defs: Vec<DataDef>,
 }
 
 /// Deviation statement
@@ -510,27 +510,29 @@ pub struct Deviation {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub not_supported: bool,
-    pub add: Option<DeviateAdd>,
-    pub delete: Option<DeviateDelete>,
-    pub replace: Option<DeviateReplace>,
+    pub add: Vec<DeviateAdd>,
+    pub delete: Vec<DeviateDelete>,
+    pub replace: Vec<DeviateReplace>,
 }
 
 /// Deviate add
 #[derive(Debug, Clone, Default)]
 pub struct DeviateAdd {
+    pub target: String,
     pub units: Option<String>,
     pub must: Vec<Must>,
     pub unique: Vec<String>,
     pub default: Vec<String>,
     pub config: Option<bool>,
     pub mandatory: Option<bool>,
-    pub min_elements: Option<u32>,
+    pub min_elements: Option<i64>,
     pub max_elements: Option<MaxElements>,
 }
 
 /// Deviate delete
 #[derive(Debug, Clone, Default)]
 pub struct DeviateDelete {
+    pub target: String,
     pub units: Option<String>,
     pub must: Vec<Must>,
     pub unique: Vec<String>,
@@ -540,12 +542,13 @@ pub struct DeviateDelete {
 /// Deviate replace
 #[derive(Debug, Clone, Default)]
 pub struct DeviateReplace {
+    pub target: String,
     pub type_info: Option<TypeInfo>,
     pub units: Option<String>,
     pub default: Vec<String>,
     pub config: Option<bool>,
     pub mandatory: Option<bool>,
-    pub min_elements: Option<u32>,
+    pub min_elements: Option<i64>,
     pub max_elements: Option<MaxElements>,
 }
 
