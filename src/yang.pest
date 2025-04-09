@@ -9,7 +9,7 @@ submodule        =  { "submodule" ~ string ~ "{" ~ (submodule_header | linkage |
 submodule_header = _{ yang_version | belongs_to }
 
 // Module components
-body = { extension | feature | identity | typedef | grouping | data_def | augment | rpc | notification | deviation }
+body = { extension | feature | identity | typedef | grouping | datadef | augment | rpc | notification | deviation }
 
 // Linkage and meta components
 linkage = _{ import | include }
@@ -19,22 +19,22 @@ include =  { "include" ~ string ~ (";" | "{" ~ (revision_date | description | re
 meta = _{ organization | contact | description | reference }
 
 // Basic definitions and operations
-data_def = _{ container | leaf | leaf_list | list | choice | anydata | anyxml | uses }
+datadef = { container | leaf | leaf_list | list | choice | anydata | anyxml | uses }
 
 // Operations
 rpc            =  { "rpc" ~ string ~ (";" | "{" ~ (operation_body | input | output)* ~ "}") }
 action         =  { "action" ~ string ~ (";" | "{" ~ (operation_body | input | output)* ~ "}") }
-notification   =  { "notification" ~ string ~ (";" | "{" ~ (operation_body | data_def)* ~ "}") }
+notification   =  { "notification" ~ string ~ (";" | "{" ~ (operation_body | datadef)* ~ "}") }
 operation_body = _{ if_feature | must | status | description | reference | typedef | grouping }
 
 // Input/Output definitions
 input   =  { "input" ~ "{" ~ io_body* ~ "}" }
 output  =  { "output" ~ "{" ~ io_body* ~ "}" }
-io_body = _{ must | typedef | grouping | data_def }
+io_body = _{ must | typedef | grouping | datadef }
 
 // Data definition statements
 container      =  { "container" ~ string ~ (";" | "{" ~ container_body* ~ "}") }
-container_body = _{ when | if_feature | must | presence | config | status | description | reference | typedef | grouping | data_def | action | notification }
+container_body = _{ when | if_feature | must | presence | config | status | description | reference | typedef | grouping | datadef | action | notification }
 
 leaf      =  { "leaf" ~ string ~ "{" ~ leaf_body+ ~ "}" }
 leaf_body = _{ when | if_feature | type_info | units | must | default | config | mandatory | status | description | reference }
@@ -43,15 +43,15 @@ leaf_list      =  { "leaf-list" ~ string ~ "{" ~ leaf_list_body+ ~ "}" }
 leaf_list_body = _{ when | if_feature | type_info | units | must | default | config | min_elements | max_elements | ordered_by | status | description | reference }
 
 list      =  { "list" ~ string ~ (";" | "{" ~ list_body* ~ "}") }
-list_body = _{ when | if_feature | must | key | unique | config | min_elements | max_elements | ordered_by | status | description | reference | typedef | grouping | data_def | action | notification }
+list_body = _{ when | if_feature | must | key | unique | config | min_elements | max_elements | ordered_by | status | description | reference | typedef | grouping | datadef | action | notification }
 
 // Choice and case constructs
 choice      =  { "choice" ~ string ~ (";" | "{" ~ choice_body* ~ "}") }
-choice_body = _{ when | if_feature | default | config | mandatory | status | description | reference | short_case | case }
+choice_body = _{ when | if_feature | default | config | mandatory | status | description | reference | long_case | short_case }
 short_case  =  { choice | container | leaf | leaf_list | list | anydata | anyxml }
 
-case      =  { "case" ~ string ~ (";" | "{" ~ case_body* ~ "}") }
-case_body = _{ when | if_feature | status | description | reference | data_def }
+long_case =  { "case" ~ string ~ (";" | "{" ~ case_body* ~ "}") }
+case_body = _{ when | if_feature | status | description | reference | datadef }
 
 // Any data structures
 anydata   =  { "anydata" ~ string ~ (";" | "{" ~ anyx_body* ~ "}") }
@@ -60,7 +60,7 @@ anyx_body = _{ when | if_feature | must | config | mandatory | status | descript
 
 // Grouping and Uses
 grouping      =  { "grouping" ~ string ~ (";" | "{" ~ grouping_body* ~ "}") }
-grouping_body = _{ status | description | reference | typedef | grouping | data_def | action | notification }
+grouping_body = _{ status | description | reference | typedef | grouping | datadef | action | notification }
 
 uses      =  { "uses" ~ string ~ (";" | "{" ~ uses_body* ~ "}") }
 uses_body = _{ when | if_feature | status | description | reference | refine | augment }
@@ -104,10 +104,11 @@ extension = { "extension" ~ string ~ (";" | "{" ~ (argument | status | descripti
 
 // Augmentation etc.
 augment      =  { "augment" ~ string ~ "{" ~ augment_body* ~ "}" }
-augment_body = _{ when | if_feature | status | description | reference | data_def | case | action | notification }
+augment_body = _{ when | if_feature | status | description | reference | datadef | long_case | action | notification }
 
-deviation      =  { "deviation" ~ string ~ "{" ~ deviation_body* ~ "}" }
-deviation_body = _{ description | reference | "not_supported" | deviate_add | deviate_delete | deviate_replace }
+deviation               =  { "deviation" ~ string ~ "{" ~ deviation_body* ~ "}" }
+deviation_body          = _{ description | reference | deviation_not_supported | deviate_add | deviate_delete | deviate_replace }
+deviation_not_supported =  { "not_supported" ~ ";" }
 
 deviate_add      =  { "deviate_add" ~ string ~ (";" | "{" ~ deviate_add_body* ~ "}") }
 deviate_add_body = _{ units | must | unique | default | config | mandatory | min_elements | max_elements }

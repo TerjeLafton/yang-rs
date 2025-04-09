@@ -77,14 +77,6 @@ pub struct Revision {
 /// All possible schema nodes that can appear in a YANG module body
 #[derive(Debug, Clone)]
 pub enum SchemaNode {
-    Container(Container),
-    Leaf(Leaf),
-    LeafList(LeafList),
-    List(List),
-    Choice(Choice),
-    Anydata(Anydata),
-    Anyxml(Anyxml),
-    Uses(Uses),
     TypeDef(TypeDef),
     Grouping(Grouping),
     Extension(Extension),
@@ -94,6 +86,19 @@ pub enum SchemaNode {
     Rpc(Rpc),
     Notification(Notification),
     Deviation(Deviation),
+    DataDef(DataDef),
+}
+
+#[derive(Debug, Clone)]
+pub enum DataDef {
+    Container(Container),
+    Leaf(Leaf),
+    LeafList(LeafList),
+    List(List),
+    Choice(Choice),
+    AnyData(Anydata),
+    Anyxml(Anyxml),
+    Uses(Uses),
 }
 
 /// Container statement
@@ -110,7 +115,7 @@ pub struct Container {
     pub reference: Option<String>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -143,7 +148,7 @@ pub struct LeafList {
     pub must: Vec<Must>,
     pub default: Vec<String>,
     pub config: Option<bool>,
-    pub min_elements: Option<i32>,
+    pub min_elements: Option<i64>,
     pub max_elements: Option<MaxElements>,
     pub ordered_by: Option<OrderedBy>,
     pub status: Option<Status>,
@@ -169,7 +174,7 @@ pub struct List {
     pub reference: Option<String>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -189,16 +194,33 @@ pub struct Choice {
     pub cases: Vec<Case>,
 }
 
+#[derive(Debug, Clone)]
+pub enum Case {
+    LongCase(LongCase),
+    ShortCase(ShortCase),
+}
+
 /// Case statement
 #[derive(Debug, Clone, Default)]
-pub struct Case {
+pub struct LongCase {
     pub name: String,
     pub when: Option<When>,
     pub if_features: Vec<String>,
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ShortCase {
+    Choice(Choice),
+    Container(Container),
+    Leaf(Leaf),
+    LeafList(LeafList),
+    List(List),
+    Anydata(Anydata),
+    Anyxml(Anyxml),
 }
 
 /// Anydata statement
@@ -335,7 +357,7 @@ pub struct Pattern {
 pub struct EnumValue {
     pub name: String,
     pub if_features: Vec<String>,
-    pub value: Option<i32>,
+    pub value: Option<i64>,
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
@@ -346,7 +368,7 @@ pub struct EnumValue {
 pub struct Bit {
     pub name: String,
     pub if_features: Vec<String>,
-    pub position: Option<i32>,
+    pub position: Option<i64>,
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
@@ -361,7 +383,7 @@ pub struct Grouping {
     pub reference: Option<String>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
 }
@@ -413,7 +435,7 @@ pub struct Augment {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
     pub cases: Vec<Case>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -440,7 +462,7 @@ pub struct Input {
     pub must: Vec<Must>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
 }
 
 /// Output statement
@@ -449,7 +471,7 @@ pub struct Output {
     pub must: Vec<Must>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
 }
 
 /// Action statement
@@ -478,7 +500,7 @@ pub struct Notification {
     pub reference: Option<String>,
     pub typedefs: Vec<TypeDef>,
     pub groupings: Vec<Grouping>,
-    pub children: Vec<SchemaNode>,
+    pub datadefs: Vec<DataDef>,
 }
 
 /// Deviation statement
@@ -537,7 +559,7 @@ pub struct Refine {
     pub default: Vec<String>,
     pub config: Option<bool>,
     pub mandatory: Option<bool>,
-    pub min_elements: Option<u32>,
+    pub min_elements: Option<i64>,
     pub max_elements: Option<MaxElements>,
     pub description: Option<String>,
     pub reference: Option<String>,
@@ -566,7 +588,7 @@ pub struct When {
 pub enum MaxElements {
     #[default]
     Unbounded,
-    Value(i32),
+    Value(i64),
 }
 
 /// Ordered by value
