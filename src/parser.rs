@@ -1,10 +1,13 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use pest::{error::Error, iterators::Pair, Parser};
 
 use crate::{ast::*, Rule, YangModule};
 
-pub struct YangParser;
+pub struct YangParser {
+    pub groupings: HashMap<String, Grouping>,
+    pub type_defs: HashMap<String, TypeDef>,
+}
 
 impl YangParser {
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, Error<Rule>> {
@@ -55,25 +58,148 @@ impl YangParser {
             Rule::extension => SchemaNode::Extension(Self::parse_extension(node)),
             Rule::feature => SchemaNode::Feature(Self::parse_feature(node)),
             Rule::identity => SchemaNode::Identity(Self::parse_identity(node)),
-            Rule::typedef => SchemaNode::TypeDef(Self::parse_typedef(node)),
+            Rule::type_def => SchemaNode::TypeDef(Self::parse_type_def(node)),
             Rule::grouping => SchemaNode::Grouping(Self::parse_grouping(node)),
-            Rule::datadef => SchemaNode::DataDef(Self::parse_datadef(node)),
+            Rule::data_def => SchemaNode::DataDef(Self::parse_data_def(node)),
             Rule::augment => SchemaNode::Augment(Self::parse_augment(node)),
             Rule::rpc => SchemaNode::Rpc(Self::parse_rpc(node)),
             Rule::notification => SchemaNode::Notification(Self::parse_notification(node)),
+            Rule::deviation => SchemaNode::Deviation(Self::parse_deviation(node)),
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         }
     }
 
-    fn parse_datadef(input: Pair<Rule>) -> DataDef {
+    fn parse_anydata(input: Pair<Rule>) -> Anydata {
+        let mut anydata = Anydata::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => anydata.name = Self::parse_string(child),
+                Rule::when => anydata.when = Some(Self::parse_when(child)),
+                Rule::if_feature => anydata.if_features.push(Self::parse_string(child)),
+                Rule::must => anydata.must.push(Self::parse_must(child)),
+                Rule::config => anydata.config = Some(Self::parse_boolean(child)),
+                Rule::mandatory => anydata.mandatory = Some(Self::parse_boolean(child)),
+                Rule::status => anydata.status = Some(Self::parse_status(child)),
+                Rule::description => anydata.description = Some(Self::parse_string(child)),
+                Rule::reference => anydata.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        anydata
+    }
+
+    fn parse_anyxml(input: Pair<Rule>) -> Anyxml {
+        let mut anyxml = Anyxml::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => anyxml.name = Self::parse_string(child),
+                Rule::when => anyxml.when = Some(Self::parse_when(child)),
+                Rule::if_feature => anyxml.if_features.push(Self::parse_string(child)),
+                Rule::must => anyxml.must.push(Self::parse_must(child)),
+                Rule::config => anyxml.config = Some(Self::parse_boolean(child)),
+                Rule::mandatory => anyxml.mandatory = Some(Self::parse_boolean(child)),
+                Rule::status => anyxml.status = Some(Self::parse_status(child)),
+                Rule::description => anyxml.description = Some(Self::parse_string(child)),
+                Rule::reference => anyxml.reference = Some(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        anyxml
+    }
+
+    fn parse_deviation(input: Pair<Rule>) -> Deviation {
+        let mut deviation = Deviation::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => deviation.target = Self::parse_string(child),
+                Rule::description => deviation.description = Some(Self::parse_string(child)),
+                Rule::reference => deviation.reference = Some(Self::parse_string(child)),
+                Rule::deviation_not_supported => deviation.not_supported = true,
+                Rule::deviate_add => deviation.add.push(Self::parse_deviate_add(child)),
+                Rule::deviate_delete => deviation.delete.push(Self::parse_deviate_delete(child)),
+                Rule::deviate_replace => deviation.replace.push(Self::parse_deviate_replace(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        deviation
+    }
+
+    fn parse_deviate_add(input: Pair<Rule>) -> DeviateAdd {
+        let mut deviate = DeviateAdd::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => deviate.target = Self::parse_string(child),
+                Rule::units => deviate.units = Some(Self::parse_string(child)),
+                Rule::must => deviate.must.push(Self::parse_must(child)),
+                Rule::unique => deviate.unique.push(Self::parse_string(child)),
+                Rule::default => deviate.default.push(Self::parse_string(child)),
+                Rule::config => deviate.config = Some(Self::parse_boolean(child)),
+                Rule::mandatory => deviate.mandatory = Some(Self::parse_boolean(child)),
+                Rule::min_elements => deviate.min_elements = Some(Self::parse_integer(child)),
+                Rule::max_elements => deviate.max_elements = Some(Self::parse_max_elements(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        deviate
+    }
+
+    fn parse_deviate_delete(input: Pair<Rule>) -> DeviateDelete {
+        let mut deviate = DeviateDelete::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => deviate.target = Self::parse_string(child),
+                Rule::units => deviate.units = Some(Self::parse_string(child)),
+                Rule::default => deviate.default.push(Self::parse_string(child)),
+                Rule::must => deviate.must.push(Self::parse_must(child)),
+                Rule::unique => deviate.unique.push(Self::parse_string(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        deviate
+    }
+
+    fn parse_deviate_replace(input: Pair<Rule>) -> DeviateReplace {
+        let mut deviate = DeviateReplace::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => deviate.target = Self::parse_string(child),
+                Rule::type_info => deviate.type_info = Some(Self::parse_type_info(child)),
+                Rule::units => deviate.units = Some(Self::parse_string(child)),
+                Rule::default => deviate.default.push(Self::parse_string(child)),
+                Rule::config => deviate.config = Some(Self::parse_boolean(child)),
+                Rule::mandatory => deviate.mandatory = Some(Self::parse_boolean(child)),
+                Rule::min_elements => deviate.min_elements = Some(Self::parse_integer(child)),
+                Rule::max_elements => deviate.max_elements = Some(Self::parse_max_elements(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        deviate
+    }
+
+    fn parse_data_def(input: Pair<Rule>) -> DataDef {
         let node = input.into_inner().next().expect("to always have inner nodes");
 
         match node.as_rule() {
             Rule::container => DataDef::Container(Self::parse_container(node)),
             Rule::leaf => DataDef::Leaf(Self::parse_leaf(node)),
             Rule::leaf_list => DataDef::LeafList(Self::parse_leaf_list(node)),
-            Rule::uses => DataDef::Uses(Self::parse_uses(node)),
+            Rule::list => DataDef::List(Self::parse_list(node)),
             Rule::choice => DataDef::Choice(Self::parse_choice(node)),
+            Rule::anydata => DataDef::AnyData(Self::parse_anydata(node)),
+            Rule::anyxml => DataDef::Anyxml(Self::parse_anyxml(node)),
+            Rule::uses => DataDef::Uses(Self::parse_uses(node)),
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         }
     }
@@ -92,9 +218,9 @@ impl YangParser {
                 Rule::status => container.status = Some(Self::parse_status(child)),
                 Rule::description => container.description = Some(Self::parse_string(child)),
                 Rule::reference => container.reference = Some(Self::parse_string(child)),
-                Rule::typedef => container.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => container.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => container.groupings.push(Self::parse_grouping(child)),
-                Rule::datadef => container.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => container.data_defs.push(Self::parse_data_def(child)),
                 Rule::action => container.actions.push(Self::parse_action(child)),
                 Rule::notification => container.notifications.push(Self::parse_notification(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
@@ -135,6 +261,9 @@ impl YangParser {
             Rule::container => ShortCase::Container(Self::parse_container(node)),
             Rule::leaf => ShortCase::Leaf(Self::parse_leaf(node)),
             Rule::leaf_list => ShortCase::LeafList(Self::parse_leaf_list(node)),
+            Rule::list => ShortCase::List(Self::parse_list(node)),
+            Rule::anydata => ShortCase::Anydata(Self::parse_anydata(node)),
+            Rule::anyxml => ShortCase::Anyxml(Self::parse_anyxml(node)),
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         }
     }
@@ -150,7 +279,7 @@ impl YangParser {
                 Rule::status => case.status = Some(Self::parse_status(child)),
                 Rule::description => case.description = Some(Self::parse_string(child)),
                 Rule::reference => case.reference = Some(Self::parse_string(child)),
-                Rule::datadef => case.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => case.data_defs.push(Self::parse_data_def(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -189,7 +318,7 @@ impl YangParser {
                 Rule::status => augment.status = Some(Self::parse_status(child)),
                 Rule::description => augment.description = Some(Self::parse_string(child)),
                 Rule::reference => augment.reference = Some(Self::parse_string(child)),
-                Rule::datadef => augment.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => augment.data_defs.push(Self::parse_data_def(child)),
                 Rule::long_case => augment.cases.push(Case::LongCase(Self::parse_long_case(child))),
                 Rule::action => augment.actions.push(Self::parse_action(child)),
                 Rule::notification => augment.notifications.push(Self::parse_notification(child)),
@@ -229,9 +358,9 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::must => output.must.push(Self::parse_must(child)),
-                Rule::typedef => output.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => output.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => output.groupings.push(Self::parse_grouping(child)),
-                Rule::datadef => output.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => output.data_defs.push(Self::parse_data_def(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -245,9 +374,9 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::must => new_input.must.push(Self::parse_must(child)),
-                Rule::typedef => new_input.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => new_input.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => new_input.groupings.push(Self::parse_grouping(child)),
-                Rule::datadef => new_input.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => new_input.data_defs.push(Self::parse_data_def(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -268,7 +397,7 @@ impl YangParser {
                 Rule::status => rpc.status = Some(Self::parse_status(child)),
                 Rule::description => rpc.description = Some(Self::parse_string(child)),
                 Rule::reference => rpc.reference = Some(Self::parse_string(child)),
-                Rule::typedef => rpc.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => rpc.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => rpc.groupings.push(Self::parse_grouping(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
@@ -290,7 +419,7 @@ impl YangParser {
                 Rule::status => action.status = Some(Self::parse_status(child)),
                 Rule::description => action.description = Some(Self::parse_string(child)),
                 Rule::reference => action.reference = Some(Self::parse_string(child)),
-                Rule::typedef => action.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => action.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => action.groupings.push(Self::parse_grouping(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
@@ -305,13 +434,13 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::string => notification.name = Self::parse_string(child),
-                Rule::datadef => notification.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => notification.data_defs.push(Self::parse_data_def(child)),
                 Rule::if_feature => notification.if_features.push(Self::parse_string(child)),
                 Rule::must => notification.must.push(Self::parse_must(child)),
                 Rule::status => notification.status = Some(Self::parse_status(child)),
                 Rule::description => notification.description = Some(Self::parse_string(child)),
                 Rule::reference => notification.reference = Some(Self::parse_string(child)),
-                Rule::typedef => notification.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => notification.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => notification.groupings.push(Self::parse_grouping(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
@@ -390,9 +519,9 @@ impl YangParser {
                 Rule::status => grouping.status = Some(Self::parse_status(child)),
                 Rule::description => grouping.description = Some(Self::parse_string(child)),
                 Rule::reference => grouping.reference = Some(Self::parse_string(child)),
-                Rule::typedef => grouping.typedefs.push(Self::parse_typedef(child)),
+                Rule::type_def => grouping.type_defs.push(Self::parse_type_def(child)),
                 Rule::grouping => grouping.groupings.push(Self::parse_grouping(child)),
-                Rule::datadef => grouping.datadefs.push(Self::parse_datadef(child)),
+                Rule::data_def => grouping.data_defs.push(Self::parse_data_def(child)),
                 Rule::action => grouping.actions.push(Self::parse_action(child)),
                 Rule::notification => grouping.notifications.push(Self::parse_notification(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
@@ -402,7 +531,7 @@ impl YangParser {
         grouping
     }
 
-    fn parse_typedef(input: Pair<Rule>) -> TypeDef {
+    fn parse_type_def(input: Pair<Rule>) -> TypeDef {
         let mut type_def = TypeDef::default();
 
         for child in input.into_inner() {
@@ -468,6 +597,36 @@ impl YangParser {
         }
 
         leaf
+    }
+
+    fn parse_list(input: Pair<Rule>) -> List {
+        let mut list = List::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => list.name = Self::parse_string(child),
+                Rule::when => list.when = Some(Self::parse_when(child)),
+                Rule::if_feature => list.if_features.push(Self::parse_string(child)),
+                Rule::must => list.must.push(Self::parse_must(child)),
+                Rule::key => list.key = Some(Self::parse_string(child)),
+                Rule::unique => list.unique.push(Self::parse_string(child)),
+                Rule::config => list.config = Some(Self::parse_boolean(child)),
+                Rule::min_elements => list.min_elements = Some(Self::parse_integer(child)),
+                Rule::max_elements => list.max_elements = Some(Self::parse_max_elements(child)),
+                Rule::ordered_by => list.ordered_by = Some(Self::parse_ordered_by(child)),
+                Rule::status => list.status = Some(Self::parse_status(child)),
+                Rule::description => list.description = Some(Self::parse_string(child)),
+                Rule::reference => list.reference = Some(Self::parse_string(child)),
+                Rule::type_def => list.type_defs.push(Self::parse_type_def(child)),
+                Rule::grouping => list.groupings.push(Self::parse_grouping(child)),
+                Rule::data_def => list.data_defs.push(Self::parse_data_def(child)),
+                Rule::action => list.actions.push(Self::parse_action(child)),
+                Rule::notification => list.notifications.push(Self::parse_notification(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        list
     }
 
     fn parse_type_info(input: Pair<Rule>) -> TypeInfo {
