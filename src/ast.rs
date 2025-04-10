@@ -78,9 +78,9 @@ pub struct Revision {
 #[derive(Debug, Clone)]
 pub enum SchemaNode {
     TypeDef(TypeDef),
-    Grouping(Grouping),
     Extension(Extension),
     Feature(Feature),
+    Grouping,
     Identity(Identity),
     Augment(Augment),
     Rpc(Rpc),
@@ -114,7 +114,6 @@ pub struct Container {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -173,7 +172,6 @@ pub struct List {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -382,7 +380,6 @@ pub struct Grouping {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -451,7 +448,6 @@ pub struct Rpc {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub input: Option<Input>,
     pub output: Option<Output>,
 }
@@ -461,7 +457,6 @@ pub struct Rpc {
 pub struct Input {
     pub must: Vec<Must>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
 }
 
@@ -470,7 +465,6 @@ pub struct Input {
 pub struct Output {
     pub must: Vec<Must>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
 }
 
@@ -484,7 +478,6 @@ pub struct Action {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub input: Option<Input>,
     pub output: Option<Output>,
 }
@@ -499,7 +492,6 @@ pub struct Notification {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub type_defs: Vec<TypeDef>,
-    pub groupings: Vec<Grouping>,
     pub data_defs: Vec<DataDef>,
 }
 

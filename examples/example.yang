@@ -8,42 +8,17 @@ module system {
     description "System module";
     reference "See system.com";
 
-list interface {
-  key "name";
-  description "List of network interfaces on the device";
-  leaf name {
+container testing {
+grouping address {
+  description "A simple address grouping";
+
+  leaf street {
     type string;
-    description "The name of the interface";
   }
 
-  leaf enabled {
-    type boolean;
-    default true;
-    description "Whether the interface is enabled";
+  leaf city {
+    type string;
   }
-
-  leaf mtu {
-    type uint16;
-    default 1500;
-    description "Maximum Transmission Unit";
-  }
-
-  leaf-list ip-address {
-    type inet:ip-address;
-    description "IP addresses configured on the interface";
-  }
-
-  container statistics {
-    config false;
-    description "Operational statistics for the interface";
-    leaf rx-packets {
-      type uint64;
-      description "Number of received packets";
-    }
-    leaf tx-packets {
-      type uint64;
-      description "Number of transmitted packets";
-    }
-  }
+}
 }
 }

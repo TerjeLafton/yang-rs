@@ -133,8 +133,8 @@ if_feature = { "if-feature" ~ string ~ ";" }
 range      =  { "range" ~ string ~ (";" | "{" ~ range_body* ~ "}") }
 range_body = _{ error_message | error_app_tag | description | reference }
 
-length      = { "length" ~ string ~ (";" | "{" ~ length_body* ~ "}") }
-length_body = { error_message | error_app_tag | description | reference }
+length      =  { "length" ~ string ~ (";" | "{" ~ length_body* ~ "}") }
+length_body = _{ error_message | error_app_tag | description | reference }
 
 pattern        =  { "pattern" ~ string ~ (";" | "{" ~ pattern_body* ~ "}")* }
 pattern_body   = _{ modifier | error_message | error_app_tag | description | reference }
