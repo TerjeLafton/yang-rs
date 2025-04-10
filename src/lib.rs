@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod ast;
+pub mod parse;
 pub mod parser;
 
 use pest_derive::Parser;
