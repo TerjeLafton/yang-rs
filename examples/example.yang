@@ -8,17 +8,21 @@ module system {
     description "System module";
     reference "See system.com";
 
-container testing {
-grouping address {
-  description "A simple address grouping";
+    grouping address {
+        description "A simple address grouping";
 
-  leaf street {
-    type string;
-  }
+        leaf city {
+            type string;
+        }
+    }
 
-  leaf city {
-    type string;
-  }
-}
-}
+    container testing {
+        uses address;
+
+
+        container system-config {
+            description "System configuration container";
+            uses address;
+        }
+    }
 }

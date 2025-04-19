@@ -2,6 +2,7 @@
 
 mod ast;
 pub mod parser;
+pub mod resolver;
 
 use pest_derive::Parser;
 

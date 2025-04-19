@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, path::Path};
 
 use pest::{error::Error, iterators::Pair, Parser};
 
-use crate::{ast::*, Rule, YangModule};
+use crate::{ast::*, resolver::ReferenceResolver, Rule, YangModule};
 
 pub struct YangParser {
     current_path: String,
@@ -20,9 +20,12 @@ impl YangParser {
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, Error<Rule>> {
         let mut parser = Self::new();
         let content = fs::read_to_string(path).expect("file to be available");
-        let result = parser.parse(&content);
-        dbg!(parser.groupings);
-        result
+        let mut parser_result = parser.parse(&content)?;
+
+        let resolver = ReferenceResolver::new(parser.groupings);
+        resolver.resolve_references(&mut parser_result);
+
+        Ok(parser_result)
     }
 
     fn parse(&mut self, input: &str) -> Result<YangFile, Error<Rule>> {

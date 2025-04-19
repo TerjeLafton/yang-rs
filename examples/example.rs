@@ -2,9 +2,11 @@ use std::error::Error;
 use yang_rs::parser::YangParser;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let _file = YangParser::parse_file("../../yang/vendor/cisco/xr/771/Cisco-IOS-XR-um-router-bgp-cfg.yang").unwrap();
+    // Parse the file and resolve references
+    let file = YangParser::parse_file("examples/example.yang")?;
 
-    // dbg!(file);
+    // Print out the resolved AST
+    println!("{:#?}", file);
 
     Ok(())
 }
