@@ -1,3 +1,9 @@
+#[derive(Debug, Clone)]
+pub enum YangFile {
+    Module(Module),
+    Submodule(Submodule),
+}
+
 /// Represents a YANG module
 #[derive(Debug, Clone, Default)]
 pub struct Module {

@@ -1,0 +1,18 @@
+module example-module {
+  namespace "http://example.org/example-module";
+  prefix "ex";
+
+  include submodule;
+
+  organization "Example Organization";
+  contact "example@example.com";
+  description "A minimal example module";
+
+  grouping example-grouping {
+    description "A simple grouping with a single leaf";
+    leaf example-leaf {
+      type string;
+      description "An example leaf";
+    }
+  }
+}

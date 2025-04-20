@@ -1,0 +1,14 @@
+submodule example-submodule {
+  belongs-to example-module {
+    prefix ex;
+  }
+
+  organization "Example Organization";
+  contact "example@example.com";
+  description "A minimal example submodule";
+
+  container example-container {
+    description "An example container";
+    uses ex:example-grouping;
+  }
+}

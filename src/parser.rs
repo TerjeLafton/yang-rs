@@ -9,6 +9,8 @@ pub struct YangParser {
     groupings: HashMap<String, Grouping>,
     imports: Vec<Import>,
     includes: Vec<Include>,
+    // For tracking the current submodule's belongs-to prefix, if we're parsing a submodule
+    current_belongs_to_prefix: Option<String>,
 }
 
 impl YangParser {
@@ -18,30 +20,90 @@ impl YangParser {
             groupings: HashMap::new(),
             imports: Vec::new(),
             includes: Vec::new(),
+            current_belongs_to_prefix: None,
         }
     }
 
-    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Module, ParserError> {
-        let content = fs::read_to_string(path).expect("file to be available");
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, ParserError> {
+        let path = path.as_ref();
+        let content = fs::read_to_string(path).map_err(|err| ParserError::InvalidInput(err))?;
 
         let mut parser = Self::new();
-        let mut parsed_module = parser.parse(&content)?;
+        let mut result = parser.parse(&content)?;
+
+        // Check if parsed_module is a module
+        let module = match &mut result {
+            YangFile::Module(module) => module,
+            YangFile::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
+        };
+
+        // Process all included submodules and add their nodes to the main module
+        parser.process_includes(path, module)?;
 
         let resolver = ReferenceResolver::new(parser.groupings);
-        resolver.resolve_references(&mut parsed_module);
+        resolver.resolve_references(module);
 
-        Ok(parsed_module)
+        Ok(result)
     }
 
-    fn parse(&mut self, input: &str) -> Result<Module, ParserError> {
+    /// Process each include, parse the corresponding submodule,
+    /// and add its schema nodes to the main module
+    fn process_includes<P: AsRef<Path>>(&mut self, base_path: P, module: &mut Module) -> Result<(), ParserError> {
+        // Make a copy of includes to avoid borrow checker issues
+        let includes = self.includes.clone();
+        // Clear the includes so we don't reprocess them
+        self.includes.clear();
+
+        for include in includes {
+            // Get the directory part of the base path
+            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| std::path::Path::new("."));
+
+            // Construct the path to the included submodule with .yang extension
+            let submodule_path = parent_dir.join(format!("{}.yang", include.module));
+
+            // Read and parse the submodule
+            let submodule_content =
+                fs::read_to_string(&submodule_path).map_err(|err| ParserError::InvalidInput(err))?;
+
+            // Parse the submodule
+            let yangfile = self.parse(&submodule_content)?;
+
+            if let YangFile::Submodule(submodule) = yangfile {
+                // Recursively process any includes in this submodule
+                self.process_includes(&submodule_path, module)?;
+
+                // After processing nested includes, merge the submodule's body into the main module
+                for node in submodule.body {
+                    module.body.push(node);
+                }
+
+                // Merge any revisions
+                for revision in submodule.revisions {
+                    if !module.revisions.iter().any(|r| r.date == revision.date) {
+                        module.revisions.push(revision);
+                    }
+                }
+            } else {
+                // This shouldn't happen - an included file should be a submodule
+                return Err(ParserError::InvalidInclude(
+                    submodule_path.to_string_lossy().into_owned(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn parse(&mut self, input: &str) -> Result<YangFile, ParserError> {
         let module = YangModule::parse(Rule::file, input)
             .map_err(|err| ParserError::InvalidFile(err))?
             .next()
             .expect("a yang file to always include a module");
 
         match module.as_rule() {
-            Rule::module => Ok(self.parse_module(module)),
-            _ => Err(ParserError::InvalidEntrypoint),
+            Rule::module => Ok(YangFile::Module(self.parse_module(module))),
+            Rule::submodule => Ok(YangFile::Submodule(self.parse_submodule(module))),
+            _ => unreachable!("parsing a file can only result in a module or submodule"),
         }
     }
 
@@ -75,7 +137,11 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 Rule::string => submodule.name = self.parse_string(child),
-                Rule::belongs_to => submodule.belongs_to = self.parse_belongs_to(child),
+                Rule::belongs_to => {
+                    submodule.belongs_to = self.parse_belongs_to(child);
+                    // Store the belongs-to prefix for handling references
+                    self.current_belongs_to_prefix = Some(submodule.belongs_to.prefix.clone());
+                }
                 Rule::yang_version => submodule.yang_version = Some(self.parse_string(child)),
                 Rule::organization => submodule.meta.organization = Some(self.parse_string(child)),
                 Rule::contact => submodule.meta.contact = Some(self.parse_string(child)),
@@ -88,6 +154,9 @@ impl YangParser {
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
+
+        // Clear the belongs-to prefix after parsing the submodule
+        self.current_belongs_to_prefix = None;
 
         submodule
     }
@@ -340,7 +409,21 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
-                Rule::string => uses.grouping = self.parse_string(child),
+                Rule::string => {
+                    let mut grouping_name = self.parse_string(child);
+                    
+                    // Handle prefixed references in submodules
+                    if let Some(prefix) = &self.current_belongs_to_prefix {
+                        // Check if the grouping name has the prefix of the main module
+                        let prefixed_name = format!("{}:", prefix);
+                        if grouping_name.starts_with(&prefixed_name) {
+                            // Remove the prefix as it refers to the main module
+                            grouping_name = grouping_name[prefixed_name.len()..].to_string();
+                        }
+                    }
+                    
+                    uses.grouping = grouping_name;
+                },
                 Rule::when => uses.when = Some(self.parse_when(child)),
                 Rule::if_feature => uses.if_features.push(self.parse_string(child)),
                 Rule::status => uses.status = Some(self.parse_status(child)),
