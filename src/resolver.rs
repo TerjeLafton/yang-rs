@@ -1,5 +1,6 @@
-use crate::ast::*;
 use std::collections::HashMap;
+
+use crate::ast::*;
 
 /// Resolver for YANG references like Uses nodes
 pub struct ReferenceResolver {
@@ -12,25 +13,9 @@ impl ReferenceResolver {
     }
 
     /// Resolve all references in a YANG file
-    pub fn resolve_references(&self, file: &mut YangFile) {
-        match file {
-            YangFile::Module(module) => self.resolve_module_references(module, "/"),
-            YangFile::Submodule(submodule) => self.resolve_submodule_references(submodule, "/"),
-        }
-    }
-
-    /// Resolve references in a module
-    fn resolve_module_references(&self, module: &mut Module, path: &str) {
+    pub fn resolve_references(&self, module: &mut Module) {
         for node in &mut module.body {
-            self.resolve_schema_node_references(node, path);
-        }
-    }
-
-    /// Resolve references in a submodule
-    fn resolve_submodule_references(&self, submodule: &mut Submodule, path: &str) {
-        // Process each schema node in the submodule body
-        for node in &mut submodule.body {
-            self.resolve_schema_node_references(node, path);
+            self.resolve_schema_node_references(node, "/");
         }
     }
 
@@ -233,11 +218,8 @@ impl ReferenceResolver {
                     search_path.push('/');
                 }
             }
-
-            println!("Moved up to path {}", search_path);
         }
 
-        println!("Grouping {} not found", grouping_name);
         None
     }
 

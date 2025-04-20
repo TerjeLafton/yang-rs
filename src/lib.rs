@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 mod ast;
+mod error;
 pub mod parser;
-pub mod resolver;
+mod resolver;
 
 use pest_derive::Parser;
 

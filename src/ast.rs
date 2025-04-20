@@ -1,10 +1,3 @@
-/// Represents a complete YANG module or submodule
-#[derive(Debug, Clone)]
-pub enum YangFile {
-    Module(Module),
-    Submodule(Submodule),
-}
-
 /// Represents a YANG module
 #[derive(Debug, Clone, Default)]
 pub struct Module {
@@ -12,8 +5,6 @@ pub struct Module {
     pub yang_version: Option<String>,
     pub namespace: String,
     pub prefix: String,
-    pub imports: Vec<Import>,
-    pub includes: Vec<Include>,
     pub meta: MetaInfo,
     pub revisions: Vec<Revision>,
     pub body: Vec<SchemaNode>,
@@ -25,8 +16,6 @@ pub struct Submodule {
     pub name: String,
     pub yang_version: Option<String>,
     pub belongs_to: BelongsTo,
-    pub imports: Vec<Import>,
-    pub includes: Vec<Include>,
     pub meta: MetaInfo,
     pub revisions: Vec<Revision>,
     pub body: Vec<SchemaNode>,

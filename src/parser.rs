@@ -1,12 +1,14 @@
 use std::{collections::HashMap, fs, path::Path};
 
-use pest::{error::Error, iterators::Pair, Parser};
+use pest::{iterators::Pair, Parser};
 
-use crate::{ast::*, resolver::ReferenceResolver, Rule, YangModule};
+use crate::{ast::*, error::ParserError, resolver::ReferenceResolver, Rule, YangModule};
 
 pub struct YangParser {
     current_path: String,
     groupings: HashMap<String, Grouping>,
+    imports: Vec<Import>,
+    includes: Vec<Include>,
 }
 
 impl YangParser {
@@ -14,36 +16,39 @@ impl YangParser {
         Self {
             current_path: String::from("/"),
             groupings: HashMap::new(),
+            imports: Vec::new(),
+            includes: Vec::new(),
         }
     }
 
-    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, Error<Rule>> {
-        let mut parser = Self::new();
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Module, ParserError> {
         let content = fs::read_to_string(path).expect("file to be available");
-        let mut parser_result = parser.parse(&content)?;
+
+        let mut parser = Self::new();
+        let mut parsed_module = parser.parse(&content)?;
 
         let resolver = ReferenceResolver::new(parser.groupings);
-        resolver.resolve_references(&mut parser_result);
+        resolver.resolve_references(&mut parsed_module);
 
-        Ok(parser_result)
+        Ok(parsed_module)
     }
 
-    fn parse(&mut self, input: &str) -> Result<YangFile, Error<Rule>> {
-        let module = YangModule::parse(Rule::file, input)?
+    fn parse(&mut self, input: &str) -> Result<Module, ParserError> {
+        let module = YangModule::parse(Rule::file, input)
+            .map_err(|err| ParserError::InvalidFile(err))?
             .next()
             .expect("a yang file to always include a module");
 
         match module.as_rule() {
-            Rule::module => Ok(YangFile::Module(self.parse_module(module))),
-            _ => unreachable!("Unexpected rule: {:?}", module.as_rule()),
+            Rule::module => Ok(self.parse_module(module)),
+            _ => Err(ParserError::InvalidEntrypoint),
         }
     }
 
     fn parse_module(&mut self, input: Pair<Rule>) -> Module {
-        let pair = input;
         let mut module = Module::default();
 
-        for child in pair.into_inner() {
+        for child in input.into_inner() {
             match child.as_rule() {
                 Rule::string => module.name = self.parse_string(child),
                 Rule::prefix => module.prefix = self.parse_string(child),
@@ -54,14 +59,37 @@ impl YangParser {
                 Rule::description => module.meta.description = Some(self.parse_string(child)),
                 Rule::reference => module.meta.reference = Some(self.parse_string(child)),
                 Rule::revision => module.revisions.push(self.parse_revision(child)),
-                Rule::import => module.imports.push(self.parse_import(child)),
-                Rule::include => module.includes.push(self.parse_include(child)),
+                Rule::import => self.parse_import(child),
+                Rule::include => self.parse_include(child),
                 Rule::body => module.body.push(self.parse_body(child)),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
 
         module
+    }
+
+    fn parse_submodule(&mut self, input: Pair<Rule>) -> Submodule {
+        let mut submodule = Submodule::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => submodule.name = self.parse_string(child),
+                Rule::belongs_to => submodule.belongs_to = self.parse_belongs_to(child),
+                Rule::yang_version => submodule.yang_version = Some(self.parse_string(child)),
+                Rule::organization => submodule.meta.organization = Some(self.parse_string(child)),
+                Rule::contact => submodule.meta.contact = Some(self.parse_string(child)),
+                Rule::description => submodule.meta.description = Some(self.parse_string(child)),
+                Rule::reference => submodule.meta.reference = Some(self.parse_string(child)),
+                Rule::revision => submodule.revisions.push(self.parse_revision(child)),
+                Rule::import => self.parse_import(child),
+                Rule::include => self.parse_include(child),
+                Rule::body => submodule.body.push(self.parse_body(child)),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        submodule
     }
 
     fn parse_body(&mut self, input: Pair<Rule>) -> SchemaNode {
@@ -532,6 +560,20 @@ impl YangParser {
         }
 
         when
+    }
+
+    fn parse_belongs_to(&mut self, input: Pair<Rule>) -> BelongsTo {
+        let mut belongs_to = BelongsTo::default();
+
+        for child in input.into_inner() {
+            match child.as_rule() {
+                Rule::string => belongs_to.module = self.parse_string(child),
+                Rule::prefix => belongs_to.prefix = self.parse_string(child),
+                _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
+            }
+        }
+
+        belongs_to
     }
 
     fn parse_argument(&mut self, input: Pair<Rule>) -> Argument {
@@ -1010,7 +1052,7 @@ impl YangParser {
         revision
     }
 
-    fn parse_import(&mut self, input: Pair<Rule>) -> Import {
+    fn parse_import(&mut self, input: Pair<Rule>) {
         let mut import = Import::default();
 
         for child in input.into_inner() {
@@ -1024,10 +1066,10 @@ impl YangParser {
             }
         }
 
-        import
+        self.imports.push(import);
     }
 
-    fn parse_include(&mut self, input: Pair<Rule>) -> Include {
+    fn parse_include(&mut self, input: Pair<Rule>) {
         let mut include = Include::default();
 
         for child in input.into_inner() {
@@ -1040,7 +1082,7 @@ impl YangParser {
             }
         }
 
-        include
+        self.includes.push(include);
     }
 
     fn parse_boolean(&mut self, input: Pair<Rule>) -> bool {
