@@ -1,8 +1,8 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use pest::{iterators::Pair, Parser};
 
-use crate::{error::ParserError, ir::*, Rule, YangModule};
+use crate::{error::ParserError, ir::*, resolver::ReferenceResolver, Rule, YangModule};
 
 #[derive(Debug, Default)]
 pub struct YangParser {
@@ -28,6 +28,13 @@ pub struct YangParser {
     // to nodes in the module they belong to. This prefix is stripped away as the nodes will be merged with the
     // original modules nodes anyway.
     current_belongs_to_prefix: Option<String>,
+
+    // Track imported modules to avoid parsing the same module multiple times
+    // Maps module name to its reference nodes
+    imported_modules: HashMap<String, ReferenceNodes>,
+
+    // Maps prefix to module name for resolving prefixed references
+    prefix_to_module: HashMap<String, String>,
 }
 
 impl YangParser {
@@ -57,8 +64,18 @@ impl YangParser {
         // Process all included submodules and add their nodes to the main module
         parser.process_includes(path, module)?;
 
-        // let resolver = ReferenceResolver::new(parser.reference_nodes.groupings);
-        // resolver.resolve_references(module);
+        // Process all imported modules and merge their reference nodes
+        parser.process_imports(path, &module.name)?;
+
+        // Create resolver with all reference information (local and imported)
+        let resolver = ReferenceResolver::new(
+            parser.reference_nodes.groupings.clone(),
+            parser.imported_modules.clone(),
+            parser.prefix_to_module.clone(),
+        );
+
+        // Resolve all references in the module
+        resolver.resolve_references(module);
 
         Ok(result)
     }
@@ -100,6 +117,71 @@ impl YangParser {
                 return Err(ParserError::InvalidInclude(
                     submodule_path.to_string_lossy().into_owned(),
                 ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Recursively process imports found in the main module and its included submodules.
+    ///
+    /// This function handles importing external YANG modules and collecting their reference nodes
+    /// (groupings, type definitions, identities, etc.) for use in the main module.
+    /// It ensures:
+    /// 1. Each module is parsed only once, even if imported multiple times with different prefixes
+    /// 2. Reference nodes from imported modules are accessible through their prefixed names
+    /// 3. Imports from imported modules are also processed recursively
+    fn process_imports<P: AsRef<Path>>(&mut self, base_path: P, _current_module: &str) -> Result<(), ParserError> {
+        // Clone the imports to avoid borrowing issues during recursion
+        let imports = self.imports.clone();
+        self.imports.clear();
+
+        for import in imports {
+            // Skip if we've already processed this module
+            if self.imported_modules.contains_key(&import.module) {
+                // Just update the prefix mapping
+                self.prefix_to_module
+                    .insert(import.prefix.clone(), import.module.clone());
+                continue;
+            }
+
+            // Get the directory part of the base path
+            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| Path::new("."));
+
+            // Construct the path to the imported module
+            let module_path = parent_dir.join(format!("{}.yang", import.module));
+
+            // Read and parse the module
+            let module_content = fs::read_to_string(&module_path).map_err(|err| ParserError::InvalidFile(err))?;
+
+            let mut module_parser = Self::new();
+            let yangfile = module_parser.parse(&module_content)?;
+
+            match yangfile {
+                YangFile::Module(mut module) => {
+                    // First, process includes in this module to make sure all submodule content is merged
+                    module_parser.process_includes(&module_path, &mut module)?;
+
+                    // Store the prefix mapping
+                    self.prefix_to_module
+                        .insert(import.prefix.clone(), import.module.clone());
+
+                    // Store the imported module's reference nodes
+                    self.imported_modules
+                        .insert(import.module.clone(), module_parser.reference_nodes);
+
+                    // Recursively process imports in this module
+                    module_parser.imports.iter().for_each(|nested_import| {
+                        self.imports.push(nested_import.clone());
+                    });
+
+                    // Process nested imports
+                    self.process_imports(&module_path, &import.module)?;
+                }
+                YangFile::Submodule(_) => {
+                    // Imported files should be modules, not submodules
+                    return Err(ParserError::InvalidImport(module_path.to_string_lossy().into_owned()));
+                }
             }
         }
 
@@ -455,25 +537,31 @@ impl YangParser {
         for child in input.into_inner() {
             match child.as_rule() {
                 // Uses statements primary function is to reference groupings to add nodes to the data tree.
-                // When a uses statement in a submodule is referencing a grouping statement in the main module,
-                // it adds a prefix according to the submodules belongs-to statement.
-                // This prefix is stripped away as it is intended for the readers of the YANG file and not needed
-                // to resolve the reference. A submodules nodes are merged with the nodes of it's main module and thus
-                // a reference to that main module would not need a prefix.
                 Rule::string => {
-                    let mut grouping_name = self.parse_string(child);
+                    let grouping_name = self.parse_string(child);
 
-                    // Check if the parser has a belongs-to prefix set. This only happens when the parser starts
-                    // parsing a submodule and is removed again once parsing of said submodule is done.
+                    // Handle different cases of prefixed names:
+
+                    // Case 1: When a uses statement in a submodule is referencing a grouping in the main module,
+                    // it adds a prefix according to the submodule's belongs-to statement.
+                    // This prefix should be removed as it's just for the YANG file readers.
                     if let Some(prefix) = &self.current_belongs_to_prefix {
-                        // Check if the grouping name has the prefix from the belongs-to statement of the submodule.
                         let prefixed_name = format!("{}:", prefix);
                         if grouping_name.starts_with(&prefixed_name) {
-                            // Remove the prefix from the reference as it is not needed.
-                            grouping_name = grouping_name[prefixed_name.len()..].to_string();
+                            // Remove the belongs-to prefix from the reference
+                            uses.grouping = grouping_name[prefixed_name.len()..].to_string();
+                            continue;
                         }
                     }
 
+                    // Case 2: When a uses statement references a grouping from an imported module,
+                    // we keep the prefix to find it in the correct imported module.
+                    if grouping_name.contains(':') {
+                        uses.grouping = grouping_name;
+                        continue;
+                    }
+
+                    // Case 3: If no prefix is present, it's a local reference
                     uses.grouping = grouping_name;
                 }
                 Rule::when => uses.when = Some(self.parse_when(child)),
@@ -1283,5 +1371,58 @@ impl YangParser {
 
         self.current_path.truncate(original_path_len);
         result
+    }
+
+    /// Resolves a prefixed name (like "prefix:name") to the actual node name in the correct module
+    ///
+    /// This method handles looking up imported modules by their prefix and resolving
+    /// the reference to the correct path in that module.
+    fn resolve_prefixed_name(&self, prefixed_name: &str) -> Option<(String, String)> {
+        // Check if the name includes a prefix
+        if let Some(idx) = prefixed_name.find(':') {
+            let prefix = &prefixed_name[..idx];
+            let name = &prefixed_name[idx + 1..];
+
+            // Look up the module name from the prefix
+            if let Some(module_name) = self.prefix_to_module.get(prefix) {
+                return Some((module_name.clone(), name.to_string()));
+            }
+        }
+
+        None
+    }
+
+    /// Looks up a reference node (grouping, typedef, etc) from a prefixed name
+    ///
+    /// This method will first resolve the prefix to a module, then look up the
+    /// reference node in that module's namespace.
+    fn lookup_reference_node<T>(
+        &self,
+        prefixed_name: &str,
+        node_map: impl Fn(&ReferenceNodes) -> &HashMap<String, T>,
+    ) -> Option<&T> {
+        if let Some((module_name, name)) = self.resolve_prefixed_name(prefixed_name) {
+            // Look up the imported module
+            if let Some(ref_nodes) = self.imported_modules.get(&module_name) {
+                // Look up the specific node in that module's reference nodes
+                let path = format!("/{}", name); // Assuming imported nodes are at root level
+                return node_map(ref_nodes).get(&path);
+            }
+        }
+
+        // If not prefixed or prefix not found, look in local reference nodes
+        None
+    }
+
+    /// Looks up a grouping by name, handling prefixes for imported modules
+    fn lookup_grouping(&self, name: &str) -> Option<&Grouping> {
+        // First try to resolve as a prefixed name from an imported module
+        if let Some(grouping) = self.lookup_reference_node(name, |ref_nodes| &ref_nodes.groupings) {
+            return Some(grouping);
+        }
+
+        // Otherwise, look in local groupings
+        let path = format!("{}{}", self.current_path, name);
+        self.reference_nodes.groupings.get(&path)
     }
 }
