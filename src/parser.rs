@@ -4,6 +4,7 @@ use pest::{iterators::Pair, Parser};
 
 use crate::{error::ParserError, ir::*, Rule, YangModule};
 
+#[derive(Debug, Default)]
 pub struct YangParser {
     // imports and includes are stored to be processed after the original module is done being parsed.
     imports: Vec<Import>,
@@ -12,6 +13,11 @@ pub struct YangParser {
     // reference_nodes is used to store the nodes which are not part of the data-tree and might be referenced
     // by other nodes in the data-tree.
     reference_nodes: ReferenceNodes,
+
+    // These node types are also not part of the data tree and will be processed at the end.
+    augments: Vec<Augment>,
+    deviations: Vec<Deviation>,
+    extensions: Vec<Extension>,
 
     // Properties used during parsing.
     // current_path is used to track the path as we walk the AST and have to store nodes with their full path
@@ -27,11 +33,8 @@ pub struct YangParser {
 impl YangParser {
     fn new() -> Self {
         Self {
-            reference_nodes: ReferenceNodes::default(),
-            imports: Vec::new(),
-            includes: Vec::new(),
             current_path: String::from("/"),
-            current_belongs_to_prefix: None,
+            ..Default::default()
         }
     }
 
@@ -60,7 +63,7 @@ impl YangParser {
         Ok(result)
     }
 
-    // Recursively process includes found in the main module and any includes found nested.
+    /// Recursively process includes found in the main module and any includes found nested.
     fn process_includes<P: AsRef<Path>>(&mut self, base_path: P, module: &mut Module) -> Result<(), ParserError> {
         // We will recursively parse submodules, so we clone and clear the current list of includes.
         let includes = self.includes.clone();
@@ -285,7 +288,7 @@ impl YangParser {
             }
         }
 
-        self.reference_nodes.deviations.push(deviation);
+        self.deviations.push(deviation);
     }
 
     fn parse_deviate_add(&mut self, input: Pair<Rule>) -> DeviateAdd {
@@ -506,7 +509,7 @@ impl YangParser {
             }
         }
 
-        self.reference_nodes.augments.push(augment);
+        self.augments.push(augment);
     }
 
     fn parse_refine(&mut self, input: Pair<Rule>) -> Refine {
@@ -679,7 +682,7 @@ impl YangParser {
             }
         }
 
-        self.reference_nodes.extensions.push(extension);
+        self.extensions.push(extension);
     }
 
     fn parse_when(&mut self, input: Pair<Rule>) -> When {

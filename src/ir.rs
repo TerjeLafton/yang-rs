@@ -8,9 +8,6 @@ pub enum YangFile {
 
 #[derive(Debug, Clone, Default)]
 pub struct ReferenceNodes {
-    pub augments: Vec<Augment>,
-    pub deviations: Vec<Deviation>,
-    pub extensions: Vec<Extension>,
     pub features: HashMap<String, Feature>,
     pub groupings: HashMap<String, Grouping>,
     pub identities: HashMap<String, Identity>,
