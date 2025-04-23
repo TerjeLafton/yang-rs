@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-mod ast;
 mod error;
+mod ir;
 pub mod parser;
 mod resolver;
 

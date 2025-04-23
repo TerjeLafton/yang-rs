@@ -1,7 +1,20 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone)]
 pub enum YangFile {
     Module(Module),
     Submodule(Submodule),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ReferenceNodes {
+    pub augments: Vec<Augment>,
+    pub deviations: Vec<Deviation>,
+    pub extensions: Vec<Extension>,
+    pub features: HashMap<String, Feature>,
+    pub groupings: HashMap<String, Grouping>,
+    pub identities: HashMap<String, Identity>,
+    pub type_defs: HashMap<String, TypeDef>,
 }
 
 /// Represents a YANG module
@@ -72,15 +85,8 @@ pub struct Revision {
 /// All possible schema nodes that can appear in a YANG module body
 #[derive(Debug, Clone)]
 pub enum SchemaNode {
-    TypeDef(TypeDef),
-    Extension(Extension),
-    Feature(Feature),
-    Grouping,
-    Identity(Identity),
-    Augment(Augment),
     Rpc(Rpc),
     Notification(Notification),
-    Deviation(Deviation),
     DataDef(DataDef),
 }
 
@@ -108,7 +114,6 @@ pub struct Container {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -166,7 +171,6 @@ pub struct List {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -374,7 +378,6 @@ pub struct Grouping {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
     pub actions: Vec<Action>,
     pub notifications: Vec<Notification>,
@@ -442,7 +445,6 @@ pub struct Rpc {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub input: Option<Input>,
     pub output: Option<Output>,
 }
@@ -451,7 +453,6 @@ pub struct Rpc {
 #[derive(Debug, Clone, Default)]
 pub struct Input {
     pub must: Vec<Must>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
 }
 
@@ -459,7 +460,6 @@ pub struct Input {
 #[derive(Debug, Clone, Default)]
 pub struct Output {
     pub must: Vec<Must>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
 }
 
@@ -472,7 +472,6 @@ pub struct Action {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub input: Option<Input>,
     pub output: Option<Output>,
 }
@@ -486,7 +485,6 @@ pub struct Notification {
     pub status: Option<Status>,
     pub description: Option<String>,
     pub reference: Option<String>,
-    pub type_defs: Vec<TypeDef>,
     pub data_defs: Vec<DataDef>,
 }
 
@@ -505,7 +503,6 @@ pub struct Deviation {
 /// Deviate add
 #[derive(Debug, Clone, Default)]
 pub struct DeviateAdd {
-    pub target: String,
     pub units: Option<String>,
     pub must: Vec<Must>,
     pub unique: Vec<String>,
@@ -519,7 +516,6 @@ pub struct DeviateAdd {
 /// Deviate delete
 #[derive(Debug, Clone, Default)]
 pub struct DeviateDelete {
-    pub target: String,
     pub units: Option<String>,
     pub must: Vec<Must>,
     pub unique: Vec<String>,
@@ -529,7 +525,6 @@ pub struct DeviateDelete {
 /// Deviate replace
 #[derive(Debug, Clone, Default)]
 pub struct DeviateReplace {
-    pub target: String,
     pub type_info: Option<TypeInfo>,
     pub units: Option<String>,
     pub default: Vec<String>,

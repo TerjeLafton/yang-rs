@@ -110,13 +110,13 @@ deviation               =  { "deviation" ~ string ~ "{" ~ deviation_body* ~ "}" 
 deviation_body          = _{ description | reference | deviation_not_supported | deviate_add | deviate_delete | deviate_replace }
 deviation_not_supported =  { "not_supported" ~ ";" }
 
-deviate_add      =  { "deviate_add" ~ string ~ (";" | "{" ~ deviate_add_body* ~ "}") }
+deviate_add      =  { "deviate add" ~ (";" | "{" ~ deviate_add_body* ~ "}") }
 deviate_add_body = _{ units | must | unique | default | config | mandatory | min_elements | max_elements }
 
-deviate_delete      =  { "deviate_delete" ~ string ~ (";" | "{" ~ deviate_delete_body* ~ "}") }
+deviate_delete      =  { "deviate delete" ~ (";" | "{" ~ deviate_delete_body* ~ "}") }
 deviate_delete_body = _{ units | must | unique | default }
 
-deviate_replace      =  { "deviate_replace" ~ string ~ (";" | "{" ~ deviate_replace_body* ~ "}") }
+deviate_replace      =  { "deviate replace" ~ (";" | "{" ~ deviate_replace_body* ~ "}") }
 deviate_replace_body = _{ type_info | units | default | config | mandatory | min_elements | max_elements }
 
 refine      =  { "refine" ~ string ~ "{" ~ refine_body* ~ "}" }

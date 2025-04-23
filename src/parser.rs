@@ -1,37 +1,51 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{fs, path::Path};
 
 use pest::{iterators::Pair, Parser};
 
-use crate::{ast::*, error::ParserError, resolver::ReferenceResolver, Rule, YangModule};
+use crate::{error::ParserError, ir::*, Rule, YangModule};
 
 pub struct YangParser {
-    current_path: String,
-    groupings: HashMap<String, Grouping>,
+    // imports and includes are stored to be processed after the original module is done being parsed.
     imports: Vec<Import>,
     includes: Vec<Include>,
-    // For tracking the current submodule's belongs-to prefix, if we're parsing a submodule
+
+    // reference_nodes is used to store the nodes which are not part of the data-tree and might be referenced
+    // by other nodes in the data-tree.
+    reference_nodes: ReferenceNodes,
+
+    // Properties used during parsing.
+    // current_path is used to track the path as we walk the AST and have to store nodes with their full path
+    // in the reference_nodes struct.
+    current_path: String,
+
+    // current_belongs_to_prefix is used when parsing submodules to track which prefix they use for references
+    // to nodes in the module they belong to. This prefix is stripped away as the nodes will be merged with the
+    // original modules nodes anyway.
     current_belongs_to_prefix: Option<String>,
 }
 
 impl YangParser {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            current_path: String::from("/"),
-            groupings: HashMap::new(),
+            reference_nodes: ReferenceNodes::default(),
             imports: Vec::new(),
             includes: Vec::new(),
+            current_path: String::from("/"),
             current_belongs_to_prefix: None,
         }
     }
 
+    // parse_file is the main API for the YangParser. It starts out with a single module, which will be the
+    // entrypoint for the parsing. It will parse any references YANG file and resolve references between them.
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, ParserError> {
         let path = path.as_ref();
-        let content = fs::read_to_string(path).map_err(|err| ParserError::InvalidInput(err))?;
+        let content = fs::read_to_string(path).map_err(|err| ParserError::InvalidFile(err))?;
 
         let mut parser = Self::new();
         let mut result = parser.parse(&content)?;
 
-        // Check if parsed_module is a module
+        // The entrypoint for parsing should always be a module, not a submodule. If it is a submodule, we stop
+        // parsing and return an error to the user. They most likely selected the wrong file.
         let module = match &mut result {
             YangFile::Module(module) => module,
             YangFile::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
@@ -40,8 +54,8 @@ impl YangParser {
         // Process all included submodules and add their nodes to the main module
         parser.process_includes(path, module)?;
 
-        let resolver = ReferenceResolver::new(parser.groupings);
-        resolver.resolve_references(module);
+        // let resolver = ReferenceResolver::new(parser.reference_nodes.groupings);
+        // resolver.resolve_references(module);
 
         Ok(result)
     }
@@ -62,8 +76,7 @@ impl YangParser {
             let submodule_path = parent_dir.join(format!("{}.yang", include.module));
 
             // Read and parse the submodule
-            let submodule_content =
-                fs::read_to_string(&submodule_path).map_err(|err| ParserError::InvalidInput(err))?;
+            let submodule_content = fs::read_to_string(&submodule_path).map_err(|err| ParserError::InvalidFile(err))?;
 
             // Parse the submodule
             let yangfile = self.parse(&submodule_content)?;
@@ -94,9 +107,12 @@ impl YangParser {
         Ok(())
     }
 
+    // parse is the entrypoint for the actual parsing for the crate. It starts off with assuming that the file
+    // is a valid YANG file, as per the Pest grammar. It then starts off the chain of parsing functions and
+    // works itself through the entire tree.
     fn parse(&mut self, input: &str) -> Result<YangFile, ParserError> {
         let module = YangModule::parse(Rule::file, input)
-            .map_err(|err| ParserError::InvalidFile(err))?
+            .map_err(|err| ParserError::ParseError(err))?
             .next()
             .expect("a yang file to always include a module");
 
@@ -123,7 +139,13 @@ impl YangParser {
                 Rule::revision => module.revisions.push(self.parse_revision(child)),
                 Rule::import => self.parse_import(child),
                 Rule::include => self.parse_include(child),
-                Rule::body => module.body.push(self.parse_body(child)),
+
+                // parse_body returns an option based on if the node it parsed was a data node or not.
+                // Data nodes return Some(node) while other nodes return None.
+                Rule::body => match self.parse_body(child) {
+                    Some(node) => module.body.push(node),
+                    None => {}
+                },
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -139,7 +161,8 @@ impl YangParser {
                 Rule::string => submodule.name = self.parse_string(child),
                 Rule::belongs_to => {
                     submodule.belongs_to = self.parse_belongs_to(child);
-                    // Store the belongs-to prefix for handling references
+                    // Store the prefix from the belongs-to statement for when parsing uses statements later.
+                    // See parse_uses function for more details.
                     self.current_belongs_to_prefix = Some(submodule.belongs_to.prefix.clone());
                 }
                 Rule::yang_version => submodule.yang_version = Some(self.parse_string(child)),
@@ -150,7 +173,10 @@ impl YangParser {
                 Rule::revision => submodule.revisions.push(self.parse_revision(child)),
                 Rule::import => self.parse_import(child),
                 Rule::include => self.parse_include(child),
-                Rule::body => submodule.body.push(self.parse_body(child)),
+                Rule::body => match self.parse_body(child) {
+                    Some(node) => submodule.body.push(node),
+                    None => {}
+                },
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -161,22 +187,45 @@ impl YangParser {
         submodule
     }
 
-    fn parse_body(&mut self, input: Pair<Rule>) -> SchemaNode {
+    // parse_body is a bit different than most parse functions as it might not always return the node is just parsed.
+    // This is because a SchemaNode rerpresents both data nodes like containers and leaves, but also nodes like
+    // groupings and typedefs, which are only referenced by other data nodes.
+    // Therefor data nodes are returned by the function while other nodes are instead stored either for later
+    // processing or for resolving references later.
+    fn parse_body(&mut self, input: Pair<Rule>) -> Option<SchemaNode> {
         let node = input.into_inner().next().expect("to always have inner nodes");
 
         match node.as_rule() {
-            Rule::extension => SchemaNode::Extension(self.parse_extension(node)),
-            Rule::feature => SchemaNode::Feature(self.parse_feature(node)),
-            Rule::identity => SchemaNode::Identity(self.parse_identity(node)),
-            Rule::type_def => SchemaNode::TypeDef(self.parse_type_def(node)),
-            Rule::data_def => SchemaNode::DataDef(self.parse_data_def(node)),
-            Rule::augment => SchemaNode::Augment(self.parse_augment(node)),
-            Rule::rpc => SchemaNode::Rpc(self.parse_rpc(node)),
-            Rule::notification => SchemaNode::Notification(self.parse_notification(node)),
-            Rule::deviation => SchemaNode::Deviation(self.parse_deviation(node)),
+            Rule::data_def => Some(SchemaNode::DataDef(self.parse_data_def(node))),
+            Rule::rpc => Some(SchemaNode::Rpc(self.parse_rpc(node))),
+            Rule::notification => Some(SchemaNode::Notification(self.parse_notification(node))),
+            Rule::extension => {
+                self.parse_extension(node);
+                None
+            }
+            Rule::feature => {
+                self.parse_feature(node);
+                None
+            }
+            Rule::identity => {
+                self.parse_identity(node);
+                None
+            }
+            Rule::type_def => {
+                self.parse_type_def(node);
+                None
+            }
+            Rule::augment => {
+                self.parse_augment(node);
+                None
+            }
+            Rule::deviation => {
+                self.parse_deviation(node);
+                None
+            }
             Rule::grouping => {
                 self.parse_grouping(node);
-                SchemaNode::Grouping
+                None
             }
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         }
@@ -224,7 +273,7 @@ impl YangParser {
         anyxml
     }
 
-    fn parse_deviation(&mut self, input: Pair<Rule>) -> Deviation {
+    fn parse_deviation(&mut self, input: Pair<Rule>) {
         let mut deviation = Deviation::default();
 
         for child in input.into_inner() {
@@ -240,7 +289,7 @@ impl YangParser {
             }
         }
 
-        deviation
+        self.reference_nodes.deviations.push(deviation);
     }
 
     fn parse_deviate_add(&mut self, input: Pair<Rule>) -> DeviateAdd {
@@ -248,7 +297,6 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
-                Rule::string => deviate.target = self.parse_string(child),
                 Rule::units => deviate.units = Some(self.parse_string(child)),
                 Rule::must => deviate.must.push(self.parse_must(child)),
                 Rule::unique => deviate.unique.push(self.parse_string(child)),
@@ -269,7 +317,6 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
-                Rule::string => deviate.target = self.parse_string(child),
                 Rule::units => deviate.units = Some(self.parse_string(child)),
                 Rule::default => deviate.default.push(self.parse_string(child)),
                 Rule::must => deviate.must.push(self.parse_must(child)),
@@ -286,7 +333,6 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
-                Rule::string => deviate.target = self.parse_string(child),
                 Rule::type_info => deviate.type_info = Some(self.parse_type_info(child)),
                 Rule::units => deviate.units = Some(self.parse_string(child)),
                 Rule::default => deviate.default.push(self.parse_string(child)),
@@ -334,7 +380,7 @@ impl YangParser {
                     Rule::status => container.status = Some(this.parse_status(child)),
                     Rule::description => container.description = Some(this.parse_string(child)),
                     Rule::reference => container.reference = Some(this.parse_string(child)),
-                    Rule::type_def => container.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     Rule::data_def => container.data_defs.push(this.parse_data_def(child)),
                     Rule::action => container.actions.push(this.parse_action(child)),
@@ -409,28 +455,35 @@ impl YangParser {
 
         for child in input.into_inner() {
             match child.as_rule() {
+                // Uses statements primary function is to reference groupings to add nodes to the data tree.
+                // When a uses statement in a submodule is referencing a grouping statement in the main module,
+                // it adds a prefix according to the submodules belongs-to statement.
+                // This prefix is stripped away as it is intended for the readers of the YANG file and not needed
+                // to resolve the reference. A submodules nodes are merged with the nodes of it's main module and thus
+                // a reference to that main module would not need a prefix.
                 Rule::string => {
                     let mut grouping_name = self.parse_string(child);
-                    
-                    // Handle prefixed references in submodules
+
+                    // Check if the parser has a belongs-to prefix set. This only happens when the parser starts
+                    // parsing a submodule and is removed again once parsing of said submodule is done.
                     if let Some(prefix) = &self.current_belongs_to_prefix {
-                        // Check if the grouping name has the prefix of the main module
+                        // Check if the grouping name has the prefix from the belongs-to statement of the submodule.
                         let prefixed_name = format!("{}:", prefix);
                         if grouping_name.starts_with(&prefixed_name) {
-                            // Remove the prefix as it refers to the main module
+                            // Remove the prefix from the reference as it is not needed.
                             grouping_name = grouping_name[prefixed_name.len()..].to_string();
                         }
                     }
-                    
+
                     uses.grouping = grouping_name;
-                },
+                }
                 Rule::when => uses.when = Some(self.parse_when(child)),
                 Rule::if_feature => uses.if_features.push(self.parse_string(child)),
                 Rule::status => uses.status = Some(self.parse_status(child)),
                 Rule::description => uses.description = Some(self.parse_string(child)),
                 Rule::reference => uses.reference = Some(self.parse_string(child)),
                 Rule::refine => uses.refines.push(self.parse_refine(child)),
-                Rule::augment => uses.augments.push(self.parse_augment(child)),
+                Rule::augment => self.parse_augment(child),
                 _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
             }
         }
@@ -438,7 +491,7 @@ impl YangParser {
         uses
     }
 
-    fn parse_augment(&mut self, input: Pair<Rule>) -> Augment {
+    fn parse_augment(&mut self, input: Pair<Rule>) {
         let mut augment = Augment::default();
 
         for child in input.into_inner() {
@@ -457,7 +510,7 @@ impl YangParser {
             }
         }
 
-        augment
+        self.reference_nodes.augments.push(augment);
     }
 
     fn parse_refine(&mut self, input: Pair<Rule>) -> Refine {
@@ -490,7 +543,7 @@ impl YangParser {
             for child in input.into_inner() {
                 match child.as_rule() {
                     Rule::must => output.must.push(this.parse_must(child)),
-                    Rule::type_def => output.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     Rule::data_def => output.data_defs.push(this.parse_data_def(child)),
                     _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
@@ -508,7 +561,7 @@ impl YangParser {
             for child in input.into_inner() {
                 match child.as_rule() {
                     Rule::must => new_input.must.push(this.parse_must(child)),
-                    Rule::type_def => new_input.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     Rule::data_def => new_input.data_defs.push(this.parse_data_def(child)),
                     _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
@@ -535,7 +588,7 @@ impl YangParser {
                     Rule::status => rpc.status = Some(this.parse_status(child)),
                     Rule::description => rpc.description = Some(this.parse_string(child)),
                     Rule::reference => rpc.reference = Some(this.parse_string(child)),
-                    Rule::type_def => rpc.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
                 }
@@ -561,7 +614,7 @@ impl YangParser {
                     Rule::status => action.status = Some(this.parse_status(child)),
                     Rule::description => action.description = Some(this.parse_string(child)),
                     Rule::reference => action.reference = Some(this.parse_string(child)),
-                    Rule::type_def => action.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
                 }
@@ -586,7 +639,7 @@ impl YangParser {
                     Rule::status => notification.status = Some(this.parse_status(child)),
                     Rule::description => notification.description = Some(this.parse_string(child)),
                     Rule::reference => notification.reference = Some(this.parse_string(child)),
-                    Rule::type_def => notification.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     _ => unreachable!("Unexpected rule: {:?}", child.as_rule()),
                 }
@@ -596,12 +649,14 @@ impl YangParser {
         notification
     }
 
-    fn parse_feature(&mut self, input: Pair<Rule>) -> Feature {
+    fn parse_feature(&mut self, input: Pair<Rule>) {
         let mut feature = Feature::default();
+        let mut input = input.into_inner();
+        let name = self.parse_string(input.next().expect("first child to always be the name"));
+        feature.name = name.clone();
 
-        for child in input.into_inner() {
+        for child in input {
             match child.as_rule() {
-                Rule::string => feature.name = self.parse_string(child),
                 Rule::if_feature => feature.if_features.push(self.parse_string(child)),
                 Rule::status => feature.status = Some(self.parse_status(child)),
                 Rule::description => feature.description = Some(self.parse_string(child)),
@@ -610,10 +665,11 @@ impl YangParser {
             }
         }
 
-        feature
+        let path = format!("{}{}", self.current_path, name);
+        self.reference_nodes.features.insert(path, feature);
     }
 
-    fn parse_extension(&mut self, input: Pair<Rule>) -> Extension {
+    fn parse_extension(&mut self, input: Pair<Rule>) {
         let mut extension = Extension::default();
 
         for child in input.into_inner() {
@@ -627,7 +683,7 @@ impl YangParser {
             }
         }
 
-        extension
+        self.reference_nodes.extensions.push(extension);
     }
 
     fn parse_when(&mut self, input: Pair<Rule>) -> When {
@@ -683,7 +739,7 @@ impl YangParser {
                     Rule::status => grouping.status = Some(this.parse_status(child)),
                     Rule::description => grouping.description = Some(this.parse_string(child)),
                     Rule::reference => grouping.reference = Some(this.parse_string(child)),
-                    Rule::type_def => grouping.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     Rule::data_def => grouping.data_defs.push(this.parse_data_def(child)),
                     Rule::action => grouping.actions.push(this.parse_action(child)),
@@ -693,16 +749,18 @@ impl YangParser {
             }
         });
 
-        let path = format!("{}{}", self.current_path, grouping.name.clone());
-        self.groupings.insert(path, grouping);
+        let path = format!("{}{}", self.current_path, grouping.name);
+        self.reference_nodes.groupings.insert(path, grouping);
     }
 
-    fn parse_type_def(&mut self, input: Pair<Rule>) -> TypeDef {
+    fn parse_type_def(&mut self, input: Pair<Rule>) {
         let mut type_def = TypeDef::default();
+        let mut input = input.into_inner();
+        let name = self.parse_string(input.next().expect("first child to always be the name"));
+        type_def.name = name.clone();
 
-        for child in input.into_inner() {
+        for child in input {
             match child.as_rule() {
-                Rule::string => type_def.name = self.parse_string(child),
                 Rule::type_info => type_def.type_info = self.parse_type_info(child),
                 Rule::units => type_def.units = Some(self.parse_string(child)),
                 Rule::default => type_def.default = Some(self.parse_string(child)),
@@ -713,7 +771,8 @@ impl YangParser {
             }
         }
 
-        type_def
+        let path = format!("{}{}", self.current_path, name);
+        self.reference_nodes.type_defs.insert(path, type_def);
     }
     fn parse_leaf_list(&mut self, input: Pair<Rule>) -> LeafList {
         let mut leaf_list = LeafList::default();
@@ -786,7 +845,7 @@ impl YangParser {
                     Rule::status => list.status = Some(this.parse_status(child)),
                     Rule::description => list.description = Some(this.parse_string(child)),
                     Rule::reference => list.reference = Some(this.parse_string(child)),
-                    Rule::type_def => list.type_defs.push(this.parse_type_def(child)),
+                    Rule::type_def => this.parse_type_def(child),
                     Rule::grouping => this.parse_grouping(child),
                     Rule::data_def => list.data_defs.push(this.parse_data_def(child)),
                     Rule::action => list.actions.push(this.parse_action(child)),
@@ -859,12 +918,13 @@ impl YangParser {
         TypeBody::Bits { bits }
     }
 
-    fn parse_identity(&mut self, input: Pair<Rule>) -> Identity {
+    fn parse_identity(&mut self, input: Pair<Rule>) {
         let mut identity = Identity::default();
+        let mut input = input.into_inner();
+        let name = input.next().expect("first child to always be the name");
 
-        for child in input.into_inner() {
+        for child in input {
             match child.as_rule() {
-                Rule::string => identity.name = self.parse_string(child),
                 Rule::if_feature => identity.if_features.push(self.parse_string(child)),
                 Rule::base => identity.bases.push(self.parse_string(child)),
                 Rule::status => identity.status = Some(self.parse_status(child)),
@@ -874,7 +934,8 @@ impl YangParser {
             }
         }
 
-        identity
+        let path = format!("{}{}", self.current_path, name);
+        self.reference_nodes.identities.insert(path, identity);
     }
 
     fn parse_identityref(&mut self, input: Pair<Rule>) -> TypeBody {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::*;
+use crate::ir::*;
 
 /// Resolver for YANG references like Uses nodes
 pub struct ReferenceResolver {
@@ -23,10 +23,8 @@ impl ReferenceResolver {
     fn resolve_schema_node_references(&self, node: &mut SchemaNode, path: &str) {
         match node {
             SchemaNode::DataDef(data_def) => self.resolve_data_def_references(data_def, path),
-            SchemaNode::Augment(augment) => self.resolve_augment_references(augment, path),
             SchemaNode::Rpc(rpc) => self.resolve_rpc_references(rpc, path),
             SchemaNode::Notification(notification) => self.resolve_notification_references(notification, path),
-            _ => {}
         }
     }
 
