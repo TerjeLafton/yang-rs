@@ -60,44 +60,40 @@ impl YangParser {
         Ok(result)
     }
 
-    /// Process each include, parse the corresponding submodule,
-    /// and add its schema nodes to the main module
+    // Recursively process includes found in the main module and any includes found nested.
     fn process_includes<P: AsRef<Path>>(&mut self, base_path: P, module: &mut Module) -> Result<(), ParserError> {
-        // Make a copy of includes to avoid borrow checker issues
+        // We will recursively parse submodules, so we clone and clear the current list of includes.
         let includes = self.includes.clone();
-        // Clear the includes so we don't reprocess them
         self.includes.clear();
 
         for include in includes {
-            // Get the directory part of the base path
-            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| std::path::Path::new("."));
+            // Get the directory part of the base path.
+            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| Path::new("."));
 
-            // Construct the path to the included submodule with .yang extension
+            // Construct the path to the included submodule with .yang extension.
             let submodule_path = parent_dir.join(format!("{}.yang", include.module));
 
             // Read and parse the submodule
             let submodule_content = fs::read_to_string(&submodule_path).map_err(|err| ParserError::InvalidFile(err))?;
-
-            // Parse the submodule
             let yangfile = self.parse(&submodule_content)?;
 
             if let YangFile::Submodule(submodule) = yangfile {
-                // Recursively process any includes in this submodule
+                // Recursively process any includes in this submodule.
                 self.process_includes(&submodule_path, module)?;
 
-                // After processing nested includes, merge the submodule's body into the main module
+                // After processing nested includes, merge the submodule's nodes into the main module.
                 for node in submodule.body {
                     module.body.push(node);
                 }
 
-                // Merge any revisions
                 for revision in submodule.revisions {
                     if !module.revisions.iter().any(|r| r.date == revision.date) {
                         module.revisions.push(revision);
                     }
                 }
             } else {
-                // This shouldn't happen - an included file should be a submodule
+                // This should never happen as included files should always be submodules.
+                // If so, we return an error saying which module failed.
                 return Err(ParserError::InvalidInclude(
                     submodule_path.to_string_lossy().into_owned(),
                 ));
