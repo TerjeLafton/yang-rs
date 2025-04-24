@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use crate::yang::*;
 
-/// Resolves references between YANG nodes, particularly for "uses" statements
+/// Resolves references between YANG nodes.
 pub struct ReferenceResolver {
-    groupings: HashMap<String, Grouping>,
+    reference_nodes: ReferenceNodes,
     imported_modules: HashMap<String, ReferenceNodes>,
     prefix_to_module: HashMap<String, String>,
 }
@@ -12,25 +12,24 @@ pub struct ReferenceResolver {
 impl ReferenceResolver {
     /// Create a new reference resolver with the given reference information
     pub fn new(
-        groupings: HashMap<String, Grouping>,
+        reference_nodes: ReferenceNodes,
         imported_modules: HashMap<String, ReferenceNodes>,
         prefix_to_module: HashMap<String, String>,
     ) -> Self {
         Self {
-            groupings,
+            reference_nodes,
             imported_modules,
             prefix_to_module,
         }
     }
 
-    /// Resolve all references in a YANG file
+    /// Start resolving references by walking the tree. Walks only through nodes that can actually have references.
     pub fn resolve_references(&self, module: &mut Module) {
         for node in &mut module.body {
             self.resolve_schema_node_references(node, "/");
         }
     }
 
-    /// Resolve references in a schema node
     fn resolve_schema_node_references(&self, node: &mut SchemaNode, path: &str) {
         match node {
             SchemaNode::DataDef(data_def) => self.resolve_data_def_references(data_def, path),
@@ -39,7 +38,6 @@ impl ReferenceResolver {
         }
     }
 
-    /// Resolve references in a data definition node
     fn resolve_data_def_references(&self, data_def: &mut DataDef, path: &str) {
         match data_def {
             DataDef::Container(container) => {
@@ -58,45 +56,35 @@ impl ReferenceResolver {
         }
     }
 
-    /// Resolve references in a container
     fn resolve_container_references(&self, container: &mut Container, path: &str) {
-        // Process data definitions, which may contain Uses references
-        self.resolve_data_defs_vec(&mut container.data_defs, path);
+        self.resolve_data_defs(&mut container.data_defs, path);
 
-        // Process actions
         for action in &mut container.actions {
             let action_path = format!("{}{}/", path, action.name);
             self.resolve_action_references(action, &action_path);
         }
 
-        // Process notifications
         for notification in &mut container.notifications {
             let notification_path = format!("{}{}/", path, notification.name);
             self.resolve_notification_references(notification, &notification_path);
         }
     }
 
-    /// Resolve references in a list
     fn resolve_list_references(&self, list: &mut List, path: &str) {
-        // Process data definitions
-        self.resolve_data_defs_vec(&mut list.data_defs, path);
+        self.resolve_data_defs(&mut list.data_defs, path);
 
-        // Process actions
         for action in &mut list.actions {
             let action_path = format!("{}{}/", path, action.name);
             self.resolve_action_references(action, &action_path);
         }
 
-        // Process notifications
         for notification in &mut list.notifications {
             let notification_path = format!("{}{}/", path, notification.name);
             self.resolve_notification_references(notification, &notification_path);
         }
     }
 
-    /// Resolve references in a choice
     fn resolve_choice_references(&self, choice: &mut Choice, path: &str) {
-        // Process each case in the choice
         for case in &mut choice.cases {
             match case {
                 Case::LongCase(long_case) => {
@@ -108,13 +96,10 @@ impl ReferenceResolver {
         }
     }
 
-    /// Resolve references in a long case
     fn resolve_long_case_references(&self, long_case: &mut LongCase, path: &str) {
-        // Process data definitions
-        self.resolve_data_defs_vec(&mut long_case.data_defs, path);
+        self.resolve_data_defs(&mut long_case.data_defs, path);
     }
 
-    /// Resolve references in a short case
     fn resolve_short_case_references(&self, short_case: &mut ShortCase, path: &str) {
         match short_case {
             ShortCase::Container(container) => {
@@ -129,17 +114,13 @@ impl ReferenceResolver {
                 let choice_path = format!("{}{}/", path, choice.name);
                 self.resolve_choice_references(choice, &choice_path);
             }
-            // Leaf, LeafList, AnyData, and Anyxml don't contain Uses references
             _ => {}
         }
     }
 
-    /// Resolve references in an augment
     fn resolve_augment_references(&self, augment: &mut Augment, path: &str) {
-        // Process data definitions
-        self.resolve_data_defs_vec(&mut augment.data_defs, path);
+        self.resolve_data_defs(&mut augment.data_defs, path);
 
-        // Process cases
         for case in &mut augment.cases {
             match case {
                 Case::LongCase(long_case) => {
@@ -150,64 +131,59 @@ impl ReferenceResolver {
             }
         }
 
-        // Process actions
         for action in &mut augment.actions {
             let action_path = format!("{}{}/", path, action.name);
             self.resolve_action_references(action, &action_path);
         }
 
-        // Process notifications
         for notification in &mut augment.notifications {
             let notification_path = format!("{}{}/", path, notification.name);
             self.resolve_notification_references(notification, &notification_path);
         }
     }
 
-    /// Resolve references in an action
     fn resolve_action_references(&self, action: &mut Action, path: &str) {
         if let Some(input) = &mut action.input {
             let input_path = format!("{}input/", path);
-            self.resolve_data_defs_vec(&mut input.data_defs, &input_path);
+            self.resolve_data_defs(&mut input.data_defs, &input_path);
         }
 
         if let Some(output) = &mut action.output {
             let output_path = format!("{}output/", path);
-            self.resolve_data_defs_vec(&mut output.data_defs, &output_path);
+            self.resolve_data_defs(&mut output.data_defs, &output_path);
         }
     }
 
-    /// Resolve references in an RPC
     fn resolve_rpc_references(&self, rpc: &mut Rpc, path: &str) {
         if let Some(input) = &mut rpc.input {
             let input_path = format!("{}input/", path);
-            self.resolve_data_defs_vec(&mut input.data_defs, &input_path);
+            self.resolve_data_defs(&mut input.data_defs, &input_path);
         }
 
         if let Some(output) = &mut rpc.output {
             let output_path = format!("{}output/", path);
-            self.resolve_data_defs_vec(&mut output.data_defs, &output_path);
+            self.resolve_data_defs(&mut output.data_defs, &output_path);
         }
     }
 
-    /// Resolve references in a notification
     fn resolve_notification_references(&self, notification: &mut Notification, path: &str) {
-        self.resolve_data_defs_vec(&mut notification.data_defs, path);
+        self.resolve_data_defs(&mut notification.data_defs, path);
     }
 
-    /// Find a grouping by traversing from current path up to the root
-    /// or from imported modules when a prefix is present
+    /// Find a grouping by traversing from current path up to the root or from imported modules
+    /// when a prefix is present.
     fn find_grouping(&self, grouping_name: &str, current_path: &str) -> Option<&Grouping> {
-        // Check if the grouping name has a prefix (indicating an imported module)
+        // Check if the grouping name has a prefix (indicating an imported module).
         if let Some(idx) = grouping_name.find(':') {
             let prefix = &grouping_name[..idx];
             let name = &grouping_name[idx + 1..];
 
-            // Look up the module name from the prefix
+            // Look up the module name from the prefix.
             if let Some(module_name) = self.prefix_to_module.get(prefix) {
-                // Look up the imported module's reference nodes
+                // Look up the imported module's reference nodes.
                 if let Some(ref_nodes) = self.imported_modules.get(module_name) {
-                    // Look for the grouping in the imported module's reference nodes
-                    // Imported groupings are expected to be at the top level
+                    // Look for the grouping in the imported module's reference nodes.
+                    // Imported groupings are expected to be at the top level.
                     let path = format!("/{}", name);
 
                     #[cfg(debug_assertions)]
@@ -222,41 +198,46 @@ impl ReferenceResolver {
                         return Some(grouping);
                     }
                 }
+
+                #[cfg(debug_assertions)]
+                println!("Failed to find imported grouping {} in module {}", name, module_name);
             }
 
-            // If prefix resolution failed, return None
+            // If prefix resolution failed, return None.
             return None;
         }
 
-        // Non-prefixed grouping: look in local module using hierarchical resolution
-        // Start from the current path and work our way up
+        // Non-prefixed grouping: look in local module using hierarchical resolution.
+        // Start from the current path and work our way up.
         let mut search_path = current_path.to_string();
 
         loop {
-            // Try to find the grouping in the current search path
+            // Try to find the grouping in the current search path.
             let full_path = format!("{}{}", search_path, grouping_name);
 
             #[cfg(debug_assertions)]
             println!("Looking for local grouping {} at path {}", grouping_name, full_path);
 
-            if let Some(grouping) = self.groupings.get(&full_path) {
+            if let Some(grouping) = self.reference_nodes.groupings.get(&full_path) {
                 #[cfg(debug_assertions)]
                 println!("Found local grouping {} at path {}", grouping_name, full_path);
                 return Some(grouping);
             }
 
-            // If we're at the root, we've exhausted all options
+            // If we're at the root, we've exhausted all options.
             if search_path == "/" {
+                #[cfg(debug_assertions)]
+                println!("Exhausted all options for local grouping {}", grouping_name);
                 break;
             }
 
-            // Move up one level - remove the last directory segment
+            // Move up one level - remove the last directory segment.
             let segments: Vec<&str> = search_path.split('/').collect();
             if segments.len() <= 2 {
-                // We're already at the root level, try root itself
+                // We're already at the root level, try root itself.
                 search_path = "/".to_string();
             } else {
-                // Remove last directory and construct new path
+                // Remove last directory and construct new path.
                 search_path = segments[..segments.len() - 2].join("/");
                 if !search_path.ends_with('/') {
                     search_path.push('/');
@@ -267,44 +248,44 @@ impl ReferenceResolver {
         None
     }
 
-    /// The core method that resolves all Uses references in a vector of DataDef nodes
-    fn resolve_data_defs_vec(&self, data_defs: &mut Vec<DataDef>, path: &str) {
-        // Find indices of all Uses nodes
+    /// The core method that resolves all references in a vector of DataDef nodes.
+    fn resolve_data_defs(&self, data_defs: &mut Vec<DataDef>, path: &str) {
+        // Find indices of all Uses nodes.
         let mut uses_indices: Vec<(usize, String)> = Vec::new();
 
-        // First pass: collect all Uses nodes and their grouping names
-        for (i, data_def) in data_defs.iter().enumerate() {
+        // Collect all Uses nodes and their grouping names.
+        for (idx, data_def) in data_defs.iter().enumerate() {
             if let DataDef::Uses(uses) = data_def {
-                uses_indices.push((i, uses.grouping.clone()));
+                uses_indices.push((idx, uses.grouping.clone()));
             }
         }
 
-        // Process Uses nodes in reverse order to avoid index invalidation
+        // Process Uses nodes in reverse order to avoid index invalidation.
         for (idx, grouping_name) in uses_indices.iter().rev() {
-            // Look up the grouping by hierarchical path resolution
+            // Look up the grouping by hierarchical path resolution.
             if let Some(grouping) = self.find_grouping(&grouping_name, path) {
-                // Clone the data_defs from the grouping
+                // Clone the data_defs from the grouping.
                 let grouping_data_defs = grouping.data_defs.clone();
                 let data_defs_len = grouping_data_defs.len();
 
-                // Remove the Uses node
+                // Remove the Uses node as it is not needed in the final data tree.
                 data_defs.remove(*idx);
 
-                // Insert all data_defs from the grouping at the same position
-                for (j, data_def) in grouping_data_defs.into_iter().enumerate() {
-                    data_defs.insert(*idx + j, data_def);
+                // Insert all data_defs from the grouping at the same position.
+                for (inner_idx, data_def) in grouping_data_defs.into_iter().enumerate() {
+                    data_defs.insert(*idx + inner_idx, data_def);
                 }
 
-                // Process the newly inserted nodes to resolve any nested references
-                for j in 0..data_defs_len {
-                    if let Some(data_def) = data_defs.get_mut(*idx + j) {
+                // Process the newly inserted nodes to resolve any nested references.
+                for inner_idx in 0..data_defs_len {
+                    if let Some(data_def) = data_defs.get_mut(*idx + inner_idx) {
                         self.resolve_data_def_references(data_def, path);
                     }
                 }
             }
         }
 
-        // Second pass: recursively resolve any references in remaining nodes
+        // Recursively resolve any references in remaining nodes
         for data_def in data_defs.iter_mut() {
             self.resolve_data_def_references(data_def, path);
         }

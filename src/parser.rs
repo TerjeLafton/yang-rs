@@ -9,12 +9,12 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct YangParser {
     // imports and includes are stored to be processed after the original module is done being parsed.
-    imports: Vec<Import>,
+    pub imports: Vec<Import>,
     includes: Vec<Include>,
 
     // reference_nodes is used to store the nodes which are not part of the data-tree and might be referenced
     // by other nodes in the data-tree.
-    reference_nodes: ReferenceNodes,
+    pub reference_nodes: ReferenceNodes,
 
     // These node types are also not part of the data tree and will be processed at the end.
     augments: Vec<Augment>,
@@ -40,34 +40,9 @@ impl YangParser {
         }
     }
 
-    /// Take ownership of the current imports list and clear it
-    pub fn take_imports(&mut self) -> Vec<Import> {
-        std::mem::take(&mut self.imports)
-    }
-
     /// Take ownership of the current includes list and clear it
     pub fn take_includes(&mut self) -> Vec<Include> {
         std::mem::take(&mut self.includes)
-    }
-
-    /// Get a reference to the collected reference nodes
-    pub fn get_reference_nodes(&self) -> &ReferenceNodes {
-        &self.reference_nodes
-    }
-
-    /// Get the collected augments
-    pub fn get_augments(&self) -> &[Augment] {
-        &self.augments
-    }
-
-    /// Get the collected deviations
-    pub fn get_deviations(&self) -> &[Deviation] {
-        &self.deviations
-    }
-
-    /// Get the collected extensions
-    pub fn get_extensions(&self) -> &[Extension] {
-        &self.extensions
     }
 
     // parse is the entrypoint for the actual parsing for the crate. It starts off with assuming that the file

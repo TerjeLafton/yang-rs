@@ -26,6 +26,7 @@ module module-a {
     uses mb:grouping-module-b;
 
     uses grouping-submodule-a;
+    uses mc:grouping-non-existing;
 
     uses mb:grouping-submodule-b;
   }
