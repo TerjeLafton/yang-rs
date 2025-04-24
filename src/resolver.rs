@@ -1,26 +1,22 @@
 use std::collections::HashMap;
 
-use crate::ir::*;
+use crate::yang::*;
 
-/// Resolver for YANG references like Uses nodes
+/// Resolves references between YANG nodes, particularly for "uses" statements
 pub struct ReferenceResolver {
-    // Local groupings from main module
     groupings: HashMap<String, Grouping>,
-    
-    // Imported module reference nodes by module name
     imported_modules: HashMap<String, ReferenceNodes>,
-    
-    // Maps prefixes to module names for resolving prefixed references
     prefix_to_module: HashMap<String, String>,
 }
 
 impl ReferenceResolver {
+    /// Create a new reference resolver with the given reference information
     pub fn new(
         groupings: HashMap<String, Grouping>,
         imported_modules: HashMap<String, ReferenceNodes>,
         prefix_to_module: HashMap<String, String>,
     ) -> Self {
-        Self { 
+        Self {
             groupings,
             imported_modules,
             prefix_to_module,
@@ -204,8 +200,8 @@ impl ReferenceResolver {
         // Check if the grouping name has a prefix (indicating an imported module)
         if let Some(idx) = grouping_name.find(':') {
             let prefix = &grouping_name[..idx];
-            let name = &grouping_name[idx+1..];
-            
+            let name = &grouping_name[idx + 1..];
+
             // Look up the module name from the prefix
             if let Some(module_name) = self.prefix_to_module.get(prefix) {
                 // Look up the imported module's reference nodes
@@ -213,11 +209,13 @@ impl ReferenceResolver {
                     // Look for the grouping in the imported module's reference nodes
                     // Imported groupings are expected to be at the top level
                     let path = format!("/{}", name);
-                    
+
                     #[cfg(debug_assertions)]
-                    println!("Looking for imported grouping {} in module {} (path: {})", 
-                             name, module_name, path);
-                    
+                    println!(
+                        "Looking for imported grouping {} in module {} (path: {})",
+                        name, module_name, path
+                    );
+
                     if let Some(grouping) = ref_nodes.groupings.get(&path) {
                         #[cfg(debug_assertions)]
                         println!("Found imported grouping {} in module {}", name, module_name);
@@ -225,11 +223,11 @@ impl ReferenceResolver {
                     }
                 }
             }
-            
+
             // If prefix resolution failed, return None
             return None;
         }
-        
+
         // Non-prefixed grouping: look in local module using hierarchical resolution
         // Start from the current path and work our way up
         let mut search_path = current_path.to_string();

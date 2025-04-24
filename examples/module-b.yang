@@ -1,0 +1,22 @@
+module module-b {
+  namespace "http://example.org/example-module";
+  prefix "mb";
+
+  organization "Example Organization";
+  contact "example@example.com";
+  description "A minimal example module";
+
+  include submodule-b;
+
+  grouping grouping-module-b {
+    leaf grouping-leaf-module-b {
+      type string;
+    }
+  }
+
+  container container-module-b {
+    leaf leaf-module-b {
+      type string;
+    }
+  }
+}

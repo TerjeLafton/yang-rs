@@ -1,0 +1,25 @@
+submodule submodule-a {
+  belongs-to module-a {
+    prefix ma;
+  }
+
+  import module-b {
+    prefix smb;
+  }
+
+  organization "Example Organization";
+  contact "example@example.com";
+  description "A minimal example submodule";
+
+  grouping grouping-submodule-a {
+    leaf grouping-leaf-submodule-a {
+      type string;
+    }
+  }
+
+  container container-submodule-a {
+    description "An example container";
+    uses smb:grouping-module-b;
+    uses ma:grouping-module-a;
+  }
+}

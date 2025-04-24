@@ -1,0 +1,15 @@
+submodule submodule-b {
+  belongs-to module-b {
+    prefix mb;
+  }
+
+  organization "Example Organization";
+  contact "example@example.com";
+  description "A minimal example submodule";
+
+  grouping grouping-submodule-b {
+    leaf grouping-leaf-submodule-b {
+      type string;
+    }
+  }
+}

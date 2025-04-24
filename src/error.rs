@@ -2,7 +2,7 @@ use std::io;
 
 use thiserror::Error;
 
-use crate::Rule;
+use crate::parser_internal::Rule;
 
 #[derive(Error, Debug)]
 pub enum ParserError {
@@ -17,7 +17,7 @@ pub enum ParserError {
 
     #[error("included file has to be a submodule, not module: {0}")]
     InvalidInclude(String),
-    
+
     #[error("imported file has to be a module, not submodule: {0}")]
     InvalidImport(String),
 }

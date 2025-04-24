@@ -1,8 +1,10 @@
-use std::{collections::HashMap, fs, path::Path};
-
 use pest::{iterators::Pair, Parser};
 
-use crate::{error::ParserError, ir::*, resolver::ReferenceResolver, Rule, YangModule};
+use crate::{
+    error::ParserError,
+    parser_internal::{Rule, YangModule},
+    yang::*,
+};
 
 #[derive(Debug, Default)]
 pub struct YangParser {
@@ -28,172 +30,52 @@ pub struct YangParser {
     // to nodes in the module they belong to. This prefix is stripped away as the nodes will be merged with the
     // original modules nodes anyway.
     current_belongs_to_prefix: Option<String>,
-
-    // Track imported modules to avoid parsing the same module multiple times
-    // Maps module name to its reference nodes
-    imported_modules: HashMap<String, ReferenceNodes>,
-
-    // Maps prefix to module name for resolving prefixed references
-    prefix_to_module: HashMap<String, String>,
 }
 
 impl YangParser {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             current_path: String::from("/"),
             ..Default::default()
         }
     }
 
-    // parse_file is the main API for the YangParser. It starts out with a single module, which will be the
-    // entrypoint for the parsing. It will parse any references YANG file and resolve references between them.
-    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<YangFile, ParserError> {
-        let path = path.as_ref();
-        let content = fs::read_to_string(path).map_err(|err| ParserError::InvalidFile(err))?;
-
-        let mut parser = Self::new();
-        let mut result = parser.parse(&content)?;
-
-        // The entrypoint for parsing should always be a module, not a submodule. If it is a submodule, we stop
-        // parsing and return an error to the user. They most likely selected the wrong file.
-        let module = match &mut result {
-            YangFile::Module(module) => module,
-            YangFile::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
-        };
-
-        // Process all included submodules and add their nodes to the main module
-        parser.process_includes(path, module)?;
-
-        // Process all imported modules and merge their reference nodes
-        parser.process_imports(path, &module.name)?;
-
-        // Create resolver with all reference information (local and imported)
-        let resolver = ReferenceResolver::new(
-            parser.reference_nodes.groupings.clone(),
-            parser.imported_modules.clone(),
-            parser.prefix_to_module.clone(),
-        );
-
-        // Resolve all references in the module
-        resolver.resolve_references(module);
-
-        Ok(result)
+    /// Take ownership of the current imports list and clear it
+    pub fn take_imports(&mut self) -> Vec<Import> {
+        std::mem::take(&mut self.imports)
     }
 
-    /// Recursively process includes found in the main module and any includes found nested.
-    fn process_includes<P: AsRef<Path>>(&mut self, base_path: P, module: &mut Module) -> Result<(), ParserError> {
-        // We will recursively parse submodules, so we clone and clear the current list of includes.
-        let includes = self.includes.clone();
-        self.includes.clear();
-
-        for include in includes {
-            // Get the directory part of the base path.
-            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| Path::new("."));
-
-            // Construct the path to the included submodule with .yang extension.
-            let submodule_path = parent_dir.join(format!("{}.yang", include.module));
-
-            // Read and parse the submodule
-            let submodule_content = fs::read_to_string(&submodule_path).map_err(|err| ParserError::InvalidFile(err))?;
-            let yangfile = self.parse(&submodule_content)?;
-
-            if let YangFile::Submodule(submodule) = yangfile {
-                // Recursively process any includes in this submodule.
-                self.process_includes(&submodule_path, module)?;
-
-                // After processing nested includes, merge the submodule's nodes into the main module.
-                for node in submodule.body {
-                    module.body.push(node);
-                }
-
-                for revision in submodule.revisions {
-                    if !module.revisions.iter().any(|r| r.date == revision.date) {
-                        module.revisions.push(revision);
-                    }
-                }
-            } else {
-                // This should never happen as included files should always be submodules.
-                // If so, we return an error saying which module failed.
-                return Err(ParserError::InvalidInclude(
-                    submodule_path.to_string_lossy().into_owned(),
-                ));
-            }
-        }
-
-        Ok(())
+    /// Take ownership of the current includes list and clear it
+    pub fn take_includes(&mut self) -> Vec<Include> {
+        std::mem::take(&mut self.includes)
     }
 
-    /// Recursively process imports found in the main module and its included submodules.
-    ///
-    /// This function handles importing external YANG modules and collecting their reference nodes
-    /// (groupings, type definitions, identities, etc.) for use in the main module.
-    /// It ensures:
-    /// 1. Each module is parsed only once, even if imported multiple times with different prefixes
-    /// 2. Reference nodes from imported modules are accessible through their prefixed names
-    /// 3. Imports from imported modules are also processed recursively
-    fn process_imports<P: AsRef<Path>>(&mut self, base_path: P, _current_module: &str) -> Result<(), ParserError> {
-        // Clone the imports to avoid borrowing issues during recursion
-        let imports = self.imports.clone();
-        self.imports.clear();
+    /// Get a reference to the collected reference nodes
+    pub fn get_reference_nodes(&self) -> &ReferenceNodes {
+        &self.reference_nodes
+    }
 
-        for import in imports {
-            // Skip if we've already processed this module
-            if self.imported_modules.contains_key(&import.module) {
-                // Just update the prefix mapping
-                self.prefix_to_module
-                    .insert(import.prefix.clone(), import.module.clone());
-                continue;
-            }
+    /// Get the collected augments
+    pub fn get_augments(&self) -> &[Augment] {
+        &self.augments
+    }
 
-            // Get the directory part of the base path
-            let parent_dir = base_path.as_ref().parent().unwrap_or_else(|| Path::new("."));
+    /// Get the collected deviations
+    pub fn get_deviations(&self) -> &[Deviation] {
+        &self.deviations
+    }
 
-            // Construct the path to the imported module
-            let module_path = parent_dir.join(format!("{}.yang", import.module));
-
-            // Read and parse the module
-            let module_content = fs::read_to_string(&module_path).map_err(|err| ParserError::InvalidFile(err))?;
-
-            let mut module_parser = Self::new();
-            let yangfile = module_parser.parse(&module_content)?;
-
-            match yangfile {
-                YangFile::Module(mut module) => {
-                    // First, process includes in this module to make sure all submodule content is merged
-                    module_parser.process_includes(&module_path, &mut module)?;
-
-                    // Store the prefix mapping
-                    self.prefix_to_module
-                        .insert(import.prefix.clone(), import.module.clone());
-
-                    // Store the imported module's reference nodes
-                    self.imported_modules
-                        .insert(import.module.clone(), module_parser.reference_nodes);
-
-                    // Recursively process imports in this module
-                    module_parser.imports.iter().for_each(|nested_import| {
-                        self.imports.push(nested_import.clone());
-                    });
-
-                    // Process nested imports
-                    self.process_imports(&module_path, &import.module)?;
-                }
-                YangFile::Submodule(_) => {
-                    // Imported files should be modules, not submodules
-                    return Err(ParserError::InvalidImport(module_path.to_string_lossy().into_owned()));
-                }
-            }
-        }
-
-        Ok(())
+    /// Get the collected extensions
+    pub fn get_extensions(&self) -> &[Extension] {
+        &self.extensions
     }
 
     // parse is the entrypoint for the actual parsing for the crate. It starts off with assuming that the file
     // is a valid YANG file, as per the Pest grammar. It then starts off the chain of parsing functions and
     // works itself through the entire tree.
-    fn parse(&mut self, input: &str) -> Result<YangFile, ParserError> {
+    pub fn parse(&mut self, input: &str) -> Result<YangFile, ParserError> {
         let module = YangModule::parse(Rule::file, input)
-            .map_err(|err| ParserError::ParseError(err))?
+            .map_err(ParserError::ParseError)?
             .next()
             .expect("a yang file to always include a module");
 
@@ -1373,55 +1255,28 @@ impl YangParser {
         result
     }
 
-    /// Resolves a prefixed name (like "prefix:name") to the actual node name in the correct module
-    ///
-    /// This method handles looking up imported modules by their prefix and resolving
-    /// the reference to the correct path in that module.
-    fn resolve_prefixed_name(&self, prefixed_name: &str) -> Option<(String, String)> {
-        // Check if the name includes a prefix
-        if let Some(idx) = prefixed_name.find(':') {
-            let prefix = &prefixed_name[..idx];
-            let name = &prefixed_name[idx + 1..];
+    // These methods were used when handling imports was part of the parser
+    // They've been moved to the resolver.rs or module_loader.rs
+    // Keeping stub implementations here for now to maintain backward compatibility
 
-            // Look up the module name from the prefix
-            if let Some(module_name) = self.prefix_to_module.get(prefix) {
-                return Some((module_name.clone(), name.to_string()));
-            }
-        }
-
+    /// Removed - no longer used with separated module loader
+    fn resolve_prefixed_name(&self, _prefixed_name: &str) -> Option<(String, String)> {
         None
     }
 
-    /// Looks up a reference node (grouping, typedef, etc) from a prefixed name
-    ///
-    /// This method will first resolve the prefix to a module, then look up the
-    /// reference node in that module's namespace.
+    /// Removed - no longer used with separated module loader
     fn lookup_reference_node<T>(
         &self,
-        prefixed_name: &str,
-        node_map: impl Fn(&ReferenceNodes) -> &HashMap<String, T>,
+        _prefixed_name: &str,
+        _node_map: impl Fn(&ReferenceNodes) -> &std::collections::HashMap<String, T>,
     ) -> Option<&T> {
-        if let Some((module_name, name)) = self.resolve_prefixed_name(prefixed_name) {
-            // Look up the imported module
-            if let Some(ref_nodes) = self.imported_modules.get(&module_name) {
-                // Look up the specific node in that module's reference nodes
-                let path = format!("/{}", name); // Assuming imported nodes are at root level
-                return node_map(ref_nodes).get(&path);
-            }
-        }
-
-        // If not prefixed or prefix not found, look in local reference nodes
         None
     }
 
-    /// Looks up a grouping by name, handling prefixes for imported modules
+    /// Looks up a grouping by name in local reference nodes
     fn lookup_grouping(&self, name: &str) -> Option<&Grouping> {
-        // First try to resolve as a prefixed name from an imported module
-        if let Some(grouping) = self.lookup_reference_node(name, |ref_nodes| &ref_nodes.groupings) {
-            return Some(grouping);
-        }
-
-        // Otherwise, look in local groupings
+        // Only look in local groupings
+        // Imported groupings are now handled by the resolver
         let path = format!("{}{}", self.current_path, name);
         self.reference_nodes.groupings.get(&path)
     }
