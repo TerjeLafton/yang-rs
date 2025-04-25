@@ -1,9 +1,10 @@
-[package]
-name = "yang-rs"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = ["yang-codegen", "yang-gnmi", "yang-parser"]
+resolver = "2"
 
-[dependencies]
-pest = "2.8"
-pest_derive = "2.8"
-thiserror = "2.0.12"
+[workspace.package]
+version = "0.1.0"
+authors = ["Terje Lafton terje@lafton.io"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/TerjeLafton/yang-rs"

@@ -1,0 +1,10 @@
+[package]
+name = "yang-codegen"
+description = "Codegen library for YANG that generates Rust struct based on YANG modules"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

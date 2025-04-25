@@ -1,1 +1,21 @@
+# Main workspace target directory
 /target
+
+# Individual crate target directories (in case you build them directly)
+/*/target
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Generated documentation
+/doc/
+
+# Debug artifacts
+**/*.rs.bk
