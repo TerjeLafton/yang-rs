@@ -2,8 +2,8 @@ use pest::{iterators::Pair, Parser};
 
 use crate::{
     error::ParserError,
+    model::*,
     parser_internal::{Rule, YangModule},
-    yang::*,
 };
 
 #[derive(Debug, Default)]

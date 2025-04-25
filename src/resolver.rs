@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::yang::*;
+use crate::model::*;
 
 /// Resolves references between YANG nodes.
 pub struct ReferenceResolver {

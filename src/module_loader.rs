@@ -6,9 +6,9 @@ use std::{
 
 use crate::{
     error::ParserError,
+    model::{Import, Module, ReferenceNodes, Submodule, YangFile},
     parser::YangParser,
     resolver::ReferenceResolver,
-    yang::{Import, Module, ReferenceNodes, Submodule, YangFile},
 };
 
 /// Internal struct that handles loading, importing and including YANG modules and their dependencies.
@@ -37,13 +37,13 @@ impl ModuleLoader {
         let mut result = parser.parse(&content)?;
 
         // The entrypoint for parsing should always be a module, not a submodule.
-        let module = match &mut result {
+        let mut module = match &mut result {
             YangFile::Module(module) => module,
             YangFile::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
         };
 
         // Process all included submodules and add their nodes to the main module.
-        self.process_includes(path, module, &mut parser)?;
+        self.process_includes(path, &mut module, &mut parser)?;
 
         // Collect imports from the parser, parse them and merge their reference nodes.
         let imports = parser.imports;
