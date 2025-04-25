@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub enum YangFile {
+pub enum YangModule {
     Module(Module),
     Submodule(Submodule),
 }

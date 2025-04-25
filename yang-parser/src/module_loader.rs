@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     error::ParserError,
-    model::{Import, Module, ReferenceNodes, Submodule, YangFile},
+    model::{Import, Module, ReferenceNodes, Submodule, YangModule},
     parser::YangParser,
     resolver::ReferenceResolver,
 };
@@ -28,7 +28,7 @@ impl ModuleLoader {
     }
 
     /// Load a YANG file from the given path, processing all imports and includes.
-    pub fn load_file<P: AsRef<Path>>(mut self, path: P) -> Result<YangFile, ParserError> {
+    pub fn load_file<P: AsRef<Path>>(mut self, path: P) -> Result<YangModule, ParserError> {
         let path = path.as_ref();
         let content = fs::read_to_string(path).map_err(ParserError::InvalidFile)?;
 
@@ -38,8 +38,8 @@ impl ModuleLoader {
 
         // The entrypoint for parsing should always be a module, not a submodule.
         let mut module = match &mut result {
-            YangFile::Module(module) => module,
-            YangFile::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
+            YangModule::Module(module) => module,
+            YangModule::Submodule(_) => return Err(ParserError::InvalidParserEntrypoint),
         };
 
         // Process all included submodules and add their nodes to the main module.
@@ -74,7 +74,7 @@ impl ModuleLoader {
             let submodule_content = fs::read_to_string(&submodule_path).map_err(ParserError::InvalidFile)?;
             let yangfile = parser.parse(&submodule_content)?;
 
-            if let YangFile::Submodule(submodule) = yangfile {
+            if let YangModule::Submodule(submodule) = yangfile {
                 // Recursively process any includes in this submodule.
                 self.process_includes(&submodule_path, module, parser)?;
 
@@ -143,7 +143,7 @@ impl ModuleLoader {
             let yangfile = module_parser.parse(&module_content)?;
 
             match yangfile {
-                YangFile::Module(mut module) => {
+                YangModule::Module(mut module) => {
                     // First, process includes in this module to make sure all submodule content is merged.
                     self.process_includes(&module_path, &mut module, &mut module_parser)?;
 
@@ -160,7 +160,7 @@ impl ModuleLoader {
                         imports_to_process.push(nested_import);
                     }
                 }
-                YangFile::Submodule(_) => {
+                YangModule::Submodule(_) => {
                     // This should never happen as imported files should always be modules
                     return Err(ParserError::InvalidImport(module_path.to_string_lossy().into_owned()));
                 }

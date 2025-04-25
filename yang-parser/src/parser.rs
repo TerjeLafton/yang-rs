@@ -3,7 +3,7 @@ use pest::{iterators::Pair, Parser};
 use crate::{
     error::ParserError,
     model::*,
-    parser_internal::{Rule, YangModule},
+    parser_internal::{Rule, YangFile},
 };
 
 #[derive(Debug, Default)]
@@ -48,15 +48,15 @@ impl YangParser {
     // parse is the entrypoint for the actual parsing for the crate. It starts off with assuming that the file
     // is a valid YANG file, as per the Pest grammar. It then starts off the chain of parsing functions and
     // works itself through the entire tree.
-    pub fn parse(&mut self, input: &str) -> Result<YangFile, ParserError> {
-        let module = YangModule::parse(Rule::file, input)
+    pub fn parse(&mut self, input: &str) -> Result<YangModule, ParserError> {
+        let module = YangFile::parse(Rule::file, input)
             .map_err(ParserError::ParseError)?
             .next()
             .expect("a yang file to always include a module");
 
         match module.as_rule() {
-            Rule::module => Ok(YangFile::Module(self.parse_module(module))),
-            Rule::submodule => Ok(YangFile::Submodule(self.parse_submodule(module))),
+            Rule::module => Ok(YangModule::Module(self.parse_module(module))),
+            Rule::submodule => Ok(YangModule::Submodule(self.parse_submodule(module))),
             _ => unreachable!("parsing a file can only result in a module or submodule"),
         }
     }
