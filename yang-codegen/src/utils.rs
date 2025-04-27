@@ -25,3 +25,10 @@ pub fn sanitize_identifier(id: &str) -> syn::Ident {
     let sanitized = id.replace("-", "_");
     format_ident!("{}", sanitized)
 }
+
+pub fn format_docstring(input: &Option<String>) -> String {
+    match input {
+        Some(doc) => format!(" {}", doc),
+        None => "".into(),
+    }
+}

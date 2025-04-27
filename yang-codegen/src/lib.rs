@@ -28,10 +28,7 @@ fn generate_container(container: Container) {
             _ => None,
         })
         .collect();
-    let doc = match &container.description {
-        Some(desc) => format!(" {}", desc.as_str()),
-        None => "".into(),
-    };
+    let doc = utils::format_docstring(&container.description);
 
     let struct_def = quote! {
         #[doc = #doc]
@@ -49,10 +46,7 @@ fn generate_container(container: Container) {
 fn generate_leaf(leaf: &Leaf) -> TokenStream {
     let field_name = utils::sanitize_identifier(leaf.name.as_str());
     let field_type = utils::yang_to_rust_type(leaf.type_info.name.as_str());
-    let doc = match &leaf.description {
-        Some(desc) => format!(" {}", desc.as_str()),
-        None => "".into(),
-    };
+    let doc = utils::format_docstring(&leaf.description);
 
     quote! {
         #[doc = #doc]
