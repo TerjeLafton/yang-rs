@@ -8,3 +8,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+yang-parser = { version = "0.1.0", path = "../yang-parser" }
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+prettyplease = "0.2.32"

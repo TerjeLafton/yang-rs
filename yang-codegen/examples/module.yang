@@ -1,4 +1,4 @@
-module module-a {
+module example-module {
   namespace "http://example.org/example-module";
   prefix "ma";
 
@@ -7,7 +7,9 @@ module module-a {
   description "A minimal example module";
 
   container container-module-a {
+    description "A container for example-module";
     leaf leaf-module-a {
+      description "A leaf for example-module";
       type string;
     }
   }
